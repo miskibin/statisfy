@@ -295,13 +295,13 @@ export function MediaDetail({
         onScroll={handleScroll}
       >
         <div className="sticky top-0 bg-background z-10">
-          <div className="p-6">
+          <div className="p-6 pb-0">
             <MediaDetailHeader {...headerProps} compact={compact} />
           </div>
         </div>
 
         {/* Track listing */}
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 mt-12">
           <div className="grid grid-cols-[auto_1fr_auto] gap-4 mb-1 px-4 text-xs text-muted-foreground font-medium border-b border-muted/20 pb-2">
             <div className="w-8">#</div>
             <div>TITLE</div>
