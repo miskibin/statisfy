@@ -23,6 +23,7 @@ interface MediaGridProps {
   error: string | null;
   onRetry: () => void;
   onPlay?: (uri: string) => void; // Optional for albums without playback
+  onSelect?: (id: string) => void; // New prop for navigation to detail view
   pagination?: {
     offset: number;
     limit: number;
@@ -40,6 +41,7 @@ export function MediaGrid({
   error,
   onRetry,
   onPlay,
+  onSelect,
   pagination,
   type,
 }: MediaGridProps) {
@@ -124,12 +126,11 @@ export function MediaGrid({
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {items.map((item) => (
-          <div
-            key={item.id}
-            className={`group ${onPlay ? "cursor-pointer" : ""}`}
-            onClick={() => onPlay && item.uri && onPlay(item.uri)}
-          >
-            <div className="aspect-square bg-muted/40 rounded-md overflow-hidden relative mb-2 group-hover:opacity-80 transition-opacity">
+          <div key={item.id} className="group">
+            <div
+              className="aspect-square bg-muted/40 rounded-md overflow-hidden relative mb-2 group-hover:opacity-80 transition-opacity cursor-pointer"
+              onClick={() => onSelect && item.id && onSelect(item.id)}
+            >
               {item.images && item.images.length > 0 && item.images[0]?.url ? (
                 <img
                   src={item.images[0].url}
@@ -147,13 +148,22 @@ export function MediaGrid({
                     variant="default"
                     size="icon"
                     className="rounded-full h-12 w-12"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent triggering the parent onClick
+                      item.uri && onPlay(item.uri);
+                    }}
                   >
                     <Play className="h-6 w-6 ml-0.5" />
                   </Button>
                 </div>
               )}
             </div>
-            <div className="truncate font-medium">{item.name}</div>
+            <div
+              className="truncate font-medium cursor-pointer"
+              onClick={() => onSelect && item.id && onSelect(item.id)}
+            >
+              {item.name}
+            </div>
             {type === "playlist" ? (
               <div className="truncate text-xs text-muted-foreground">
                 {item.tracks?.total || 0} tracks

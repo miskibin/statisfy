@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { MediaGrid } from "@/components/MediaGrid";
-import { getNewReleases } from "@/utils/spotify";
+import { getNewReleases, playAlbum } from "@/utils/spotify";
+import { AlbumDetail } from "@/components/AlbumDetail";
 
 export function NewReleases() {
   const [albums, setAlbums] = useState<any[]>([]);
@@ -8,6 +9,7 @@ export function NewReleases() {
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const limit = 20;
 
   const fetchNewReleases = async (offsetValue = 0) => {
@@ -35,6 +37,18 @@ export function NewReleases() {
     fetchNewReleases();
   }, []);
 
+  const handlePlayAlbum = async (uri: string) => {
+    await playAlbum(uri);
+  };
+
+  const handleSelectAlbum = (id: string) => {
+    setSelectedAlbumId(id);
+  };
+
+  const handleBack = () => {
+    setSelectedAlbumId(null);
+  };
+
   const nextPage = () => {
     if (offset + limit < total) {
       fetchNewReleases(offset + limit);
@@ -47,6 +61,11 @@ export function NewReleases() {
     }
   };
 
+  // Show album detail if an album is selected
+  if (selectedAlbumId) {
+    return <AlbumDetail albumId={selectedAlbumId} onBack={handleBack} />;
+  }
+
   return (
     <MediaGrid
       title="New Releases"
@@ -54,6 +73,8 @@ export function NewReleases() {
       loading={loading}
       error={error}
       onRetry={() => fetchNewReleases()}
+      onPlay={handlePlayAlbum}
+      onSelect={handleSelectAlbum}
       type="album"
       pagination={{
         offset,

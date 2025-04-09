@@ -1,139 +1,11 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
+import { CacheItem, SpotifyPlaybackState } from "./spotify.types";
 
 // Spotify configuration
 const CLIENT_ID =
   import.meta.env.VITE_CLIENT_ID || "9cb0388b445a454fb6d917333f4705f6";
 const CLIENT_SECRET =
   import.meta.env.VITE_CLIENT_SECRET || "11927441af564be5b45888ba20aa3113";
-
-// Extend window interface for Spotify SDK
-declare global {
-  interface Window {
-    Spotify: {
-      Player: any;
-    };
-    onSpotifyWebPlaybackSDKReady: () => void;
-  }
-}
-
-// Cache interface
-interface CacheItem {
-  data: any;
-  expiry: number;
-}
-
-// Spotify API interfaces
-export interface SpotifyArtist {
-  id: string;
-  name: string;
-  uri: string;
-}
-
-export interface SpotifyImage {
-  url: string;
-  height: number | null;
-  width: number | null;
-}
-
-export interface SpotifyTrackItem {
-  id: string;
-  name: string;
-  uri: string;
-  duration_ms: number;
-  artists: SpotifyArtist[];
-  album: {
-    id: string;
-    name: string;
-    images: SpotifyImage[];
-  };
-}
-
-export interface SpotifyEpisodeItem {
-  id: string;
-  name: string;
-  uri: string;
-  duration_ms: number;
-  images: SpotifyImage[];
-  show: {
-    id: string;
-    name: string;
-  };
-}
-
-export interface SpotifyDevice {
-  id: string;
-  is_active: boolean;
-  is_private_session: boolean;
-  is_restricted: boolean;
-  name: string;
-  type: string;
-  volume_percent: number;
-}
-
-export interface SpotifyPlaybackState {
-  device: SpotifyDevice;
-  repeat_state: string;
-  shuffle_state: boolean;
-  is_playing: boolean;
-  item: SpotifyTrackItem | SpotifyEpisodeItem;
-  progress_ms: number;
-  timestamp: number;
-  context: {
-    uri: string;
-    type: string;
-  } | null;
-}
-
-// Web Playback SDK interfaces
-export interface WebPlaybackError {
-  message: string;
-}
-
-export interface WebPlaybackReady {
-  device_id: string;
-}
-
-export interface WebPlaybackState {
-  context: {
-    uri: string;
-    metadata: any;
-  };
-  disallows: {
-    pausing: boolean;
-    peeking_next: boolean;
-    peeking_prev: boolean;
-    resuming: boolean;
-    seeking: boolean;
-    skipping_next: boolean;
-    skipping_prev: boolean;
-  };
-  track_window: {
-    current_track: WebPlaybackTrack;
-    previous_tracks: WebPlaybackTrack[];
-    next_tracks: WebPlaybackTrack[];
-  };
-  paused: boolean;
-  position: number;
-  duration: number;
-  repeat_mode: number;
-  shuffle: boolean;
-  timestamp: number;
-}
-
-export interface WebPlaybackTrack {
-  uri: string;
-  id: string;
-  type: string;
-  media_type: string;
-  name: string;
-  is_playable: boolean;
-  album: {
-    uri: string;
-    name: string;
-    images: { url: string }[];
-  };
-  artists: { uri: string; name: string }[];
-}
 
 export class SpotifyApiClient {
   private static instance: SpotifyApiClient;
@@ -142,7 +14,6 @@ export class SpotifyApiClient {
   private refreshPromise: Promise<boolean> | null = null;
 
   private constructor() {
-    // Create axios instance
     this.client = axios.create({
       baseURL: "https://api.spotify.com/v1",
       timeout: 10000,
@@ -155,11 +26,9 @@ export class SpotifyApiClient {
     this.client.interceptors.request.use(
       async (config) => {
         const token = localStorage.getItem("spotify_access_token");
-
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
-
         return config;
       },
       (error) => Promise.reject(error)
@@ -229,16 +98,16 @@ export class SpotifyApiClient {
         }
       );
 
-      const data = response.data;
-      localStorage.setItem("spotify_access_token", data.access_token);
+      const { access_token, expires_in, refresh_token } = response.data;
+      localStorage.setItem("spotify_access_token", access_token);
       localStorage.setItem(
         "spotify_token_expiry",
-        (Date.now() + data.expires_in * 1000).toString()
+        (Date.now() + expires_in * 1000).toString()
       );
 
       // Some refresh responses also contain a new refresh token
-      if (data.refresh_token) {
-        localStorage.setItem("spotify_refresh_token", data.refresh_token);
+      if (refresh_token) {
+        localStorage.setItem("spotify_refresh_token", refresh_token);
       }
 
       return true;
@@ -321,16 +190,11 @@ export class SpotifyApiClient {
     }
   }
 
-  // Clear all cached data
-  public clearCache(): void {
-    this.cache.clear();
-  }
-
-  // Clear specific cached item
-  public clearCacheItem(url: string, config?: AxiosRequestConfig): void {
-    const cacheKey = `get:${url}:${JSON.stringify(config || {})}`;
-    this.cache.delete(cacheKey);
-  }
+  // Cache management methods
+  public clearCache = () => this.cache.clear();
+  public clearCacheItem = (url: string, config?: AxiosRequestConfig) => {
+    this.cache.delete(`get:${url}:${JSON.stringify(config || {})}`);
+  };
 }
 
 // Export a singleton instance

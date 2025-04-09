@@ -22,6 +22,7 @@
   "app": {
     "windows": [
       {
+        "decorations": false,
         "title": "statisfy",
         "width": 800,
         "height": 600

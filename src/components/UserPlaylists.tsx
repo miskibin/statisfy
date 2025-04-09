@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getUserPlaylists, playPlaylist } from "@/utils/spotify";
 import { MediaGrid } from "@/components/MediaGrid";
+import { PlaylistDetail } from "@/components/PlaylistDetail";
 
 interface Playlist {
   id: string;
@@ -18,6 +19,9 @@ export function UserPlaylists() {
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(
+    null
+  );
   const limit = 20;
 
   const fetchPlaylists = async (offsetValue = 0) => {
@@ -49,6 +53,14 @@ export function UserPlaylists() {
     await playPlaylist(uri);
   };
 
+  const handleSelectPlaylist = (id: string) => {
+    setSelectedPlaylistId(id);
+  };
+
+  const handleBack = () => {
+    setSelectedPlaylistId(null);
+  };
+
   const nextPage = () => {
     if (offset + limit < total) {
       fetchPlaylists(offset + limit);
@@ -61,6 +73,13 @@ export function UserPlaylists() {
     }
   };
 
+  // Show playlist detail if a playlist is selected
+  if (selectedPlaylistId) {
+    return (
+      <PlaylistDetail playlistId={selectedPlaylistId} onBack={handleBack} />
+    );
+  }
+
   return (
     <MediaGrid
       title="Your Playlists"
@@ -69,6 +88,7 @@ export function UserPlaylists() {
       error={error}
       onRetry={() => fetchPlaylists()}
       onPlay={handlePlayPlaylist}
+      onSelect={handleSelectPlaylist}
       type="playlist"
       pagination={{
         offset,
