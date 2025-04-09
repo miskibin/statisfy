@@ -45,25 +45,25 @@ export const Header = memo(({ onLogout }: HeaderProps) => {
   return (
     <header
       data-tauri-drag-region
-      className="border-b px-4 py-2 flex items-center justify-between h-10"
+      className="border-b px-4 flex items-center justify-between h-14"
     >
       <div className="flex items-center gap-2">
-        <SidebarTrigger />
-        <div className="font-medium">Statisfy</div>
+        <SidebarTrigger className="h-10 w-10" />
+        <div className="font-medium text-lg">Statisfy</div>
       </div>
 
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-10 w-10"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >
           {theme === "dark" ? (
-            <Sun className="h-4 w-4" />
+            <Sun className="h-5 w-5" />
           ) : (
-            <Moon className="h-4 w-4" />
+            <Moon className="h-5 w-5" />
           )}
           <span className="sr-only">Toggle theme</span>
         </Button>
@@ -71,18 +71,18 @@ export const Header = memo(({ onLogout }: HeaderProps) => {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 gap-1 text-xs"
+          className="h-10 gap-1 text-sm"
           onClick={onLogout}
         >
-          <LogOut className="h-3 w-3" /> Logout
+          <LogOut className="h-4 w-4" /> Logout
         </Button>
 
         {/* Window controls */}
-        <div className="flex items-center ml-2">
+        <div className="flex items-center ml-2 -mr-4">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-none hover:bg-slate-200 dark:hover:bg-slate-800"
+            className="h-10 w-12 rounded-none pb-1 hover:bg-muted"
             onClick={handleMinimize}
             title="Minimize"
           >
@@ -91,7 +91,7 @@ export const Header = memo(({ onLogout }: HeaderProps) => {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-none hover:bg-slate-200 dark:hover:bg-slate-800"
+            className="h-10 w-12 rounded-none pb-1 hover:bg-muted"
             onClick={handleMaximize}
             title="Maximize"
           >
@@ -100,7 +100,7 @@ export const Header = memo(({ onLogout }: HeaderProps) => {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-none hover:bg-red-500 text-current hover:text-white"
+            className="h-10 w-12 rounded-none pb-1 hover:bg-destructive hover:text-destructive-foreground"
             onClick={handleClose}
             title="Close"
           >
