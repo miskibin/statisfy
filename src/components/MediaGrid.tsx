@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Play, Pause, ListMusic, Disc } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 interface MediaItem {
   id: string;

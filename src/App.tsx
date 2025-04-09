@@ -7,6 +7,8 @@ import { Layout } from "./components/layout/Layout";
 import { UserPlaylists } from "./components/UserPlaylists";
 import { NewReleases } from "./components/NewReleases";
 import { LikedSongs } from "./components/LikedSongs";
+import { Artists } from "./components/Artists"; // Import Artists component
+import { ArtistDetail } from "./components/ArtistDetail"; // Import ArtistDetail component
 import { listen } from "@tauri-apps/api/event";
 import { Header } from "./components/layout/Header";
 
@@ -20,18 +22,35 @@ export function useNavigate() {
 }
 
 // Main content component that will re-render independently
-const MainContent = memo(({ currentView }: { currentView: string }) => {
-  switch (currentView) {
-    case "playlists":
-      return <UserPlaylists />;
-    case "new-releases":
-      return <NewReleases />;
-    case "liked":
-      return <LikedSongs />;
-    default:
-      return <div className="p-4">Content for {currentView} will go here</div>;
+const MainContent = memo(
+  ({
+    currentView,
+    params,
+  }: {
+    currentView: string;
+    params: Record<string, string>;
+  }) => {
+    if (currentView.startsWith("artists/")) {
+      const artistId = params.id || currentView.split("/")[1];
+      return <ArtistDetail artistId={artistId} />;
+    }
+
+    switch (currentView) {
+      case "playlists":
+        return <UserPlaylists />;
+      case "new-releases":
+        return <NewReleases />;
+      case "liked":
+        return <LikedSongs />;
+      case "artists":
+        return <Artists />;
+      default:
+        return (
+          <div className="p-4">Content for {currentView} will go here</div>
+        );
+    }
   }
-});
+);
 
 // Add this useEffect in your main component to load the font
 function useLoadFont() {
@@ -53,6 +72,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentView, setCurrentView] = useState("");
+  const [routeParams, setRouteParams] = useState<Record<string, string>>({});
   const navigate = useNavigate();
 
   // Load Nunito font
@@ -84,7 +104,20 @@ function App() {
     const syncViewWithPath = () => {
       const path = window.location.pathname;
       const view = path.substring(1) || "playlists"; // Default to playlists if on root path
+
+      // Extract route parameters
+      const params: Record<string, string> = {};
+
+      // Check if the path contains artist ID
+      if (path.startsWith("/artists/")) {
+        const artistId = path.split("/")[2];
+        if (artistId) {
+          params.id = artistId;
+        }
+      }
+
       setCurrentView(view);
+      setRouteParams(params);
     };
 
     // Initial sync
@@ -181,7 +214,7 @@ function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
       <Layout onLogout={handleLogout} navigate={navigate}>
-        <MainContent currentView={currentView} />
+        <MainContent currentView={currentView} params={routeParams} />
       </Layout>
     </ThemeProvider>
   );

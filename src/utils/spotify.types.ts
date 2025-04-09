@@ -155,6 +155,23 @@ export interface SpotifyNewReleasesResponse {
   albums: SpotifyPagingObject<SpotifyAlbum>;
 }
 
+// Artist-related types
+export interface SpotifyArtistDetails {
+  id: string;
+  name: string;
+  uri: string;
+  images: SpotifyImage[];
+  followers: {
+    total: number;
+  };
+  genres: string[];
+  popularity: number;
+}
+
+export interface SpotifyTopTracksResponse {
+  tracks: SpotifyTrackItem[];
+}
+
 // Web Playback SDK types
 export interface WebPlaybackError {
   message: string;

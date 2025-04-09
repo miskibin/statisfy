@@ -11,6 +11,8 @@ import {
   SpotifyPlaylistDetails,
   SpotifyAlbumDetails,
   SpotifySavedTrack,
+  SpotifyArtistDetails,
+  SpotifyTopTracksResponse,
 } from "./spotify.types";
 
 // Constants
@@ -455,4 +457,59 @@ export const getLikedSongs = async (
   );
 
   return data && data.items ? data : null;
+};
+
+// Artist-related API functions
+export const getArtistDetails = async (
+  artistId: string
+): Promise<SpotifyArtistDetails | null> => {
+  try {
+    const cacheTime = 30 * 60 * 1000; // 30 minutes cache
+    const artist = await spotifyApi.get<SpotifyArtistDetails>(
+      `/artists/${artistId}`,
+      undefined,
+      cacheTime
+    );
+    return artist;
+  } catch (error) {
+    console.error("Error fetching artist details:", error);
+    return null;
+  }
+};
+
+export const getArtistTopTracks = async (
+  artistId: string
+): Promise<SpotifyTopTracksResponse | null> => {
+  try {
+    const cacheTime = 30 * 60 * 1000; // 30 minutes cache
+    // Using the market parameter to get relevant tracks for the user's location
+    const topTracks = await spotifyApi.get<SpotifyTopTracksResponse>(
+      `/artists/${artistId}/top-tracks?market=from_token`,
+      undefined,
+      cacheTime
+    );
+    return topTracks;
+  } catch (error) {
+    console.error("Error fetching artist top tracks:", error);
+    return null;
+  }
+};
+
+export const getArtistAlbums = async (
+  artistId: string,
+  limit = 10,
+  offset = 0
+): Promise<SpotifyPagingObject<SpotifyAlbum> | null> => {
+  try {
+    const cacheTime = 30 * 60 * 1000; // 30 minutes cache
+    const albums = await spotifyApi.get<SpotifyPagingObject<SpotifyAlbum>>(
+      `/artists/${artistId}/albums?include_groups=album,single&limit=${limit}&offset=${offset}&market=from_token`,
+      undefined,
+      cacheTime
+    );
+    return albums;
+  } catch (error) {
+    console.error("Error fetching artist albums:", error);
+    return null;
+  }
 };

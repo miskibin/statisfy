@@ -7,6 +7,7 @@ import {
   History,
   LineChart,
   Disc,
+  PersonStandingIcon,
 } from "lucide-react";
 
 import {
@@ -40,6 +41,11 @@ const items = [
     title: "Your Library",
     url: "/library",
     icon: Library,
+  },
+  {
+    title: "Artists",
+    url: "/artists",
+    icon: PersonStandingIcon,
   },
   {
     title: "Playlists",

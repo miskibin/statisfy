@@ -2,7 +2,6 @@ import { ReactNode, useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Play, Clock, ArrowLeft, Pause, Music } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface MediaDetailHeaderProps {
   images: { url: string }[];

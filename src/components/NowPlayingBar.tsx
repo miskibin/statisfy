@@ -8,10 +8,11 @@ import {
 } from "@/utils/spotify";
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import { WebPlaybackPlayer, WebPlaybackState } from "@/utils/spotify.types";
+import { useNavigate } from "@/App";
 
 interface TrackInfo {
   name: string;
-  artists: string;
+  artists: { name: string; id: string }[];
   albumArt: string;
   isPlaying: boolean;
   duration: number;
@@ -27,6 +28,7 @@ export function NowPlayingBar() {
   const playerRef = useRef<WebPlaybackPlayer | null>(null);
   const progressUpdateRef = useRef<number | null>(null);
   const initializationAttempts = useRef(0);
+  const navigate = useNavigate();
 
   // Initialize Spotify Player SDK
   useEffect(() => {
@@ -71,9 +73,14 @@ export function NowPlayingBar() {
 
         if (!current_track) return;
 
+        const artists = current_track.artists.map((a) => ({
+          name: a.name,
+          id: a.uri.split(":")[2], // Extract ID from URI (spotify:artist:id)
+        }));
+
         const newTrackInfo = {
           name: current_track.name,
-          artists: current_track.artists.map((a) => a.name).join(", "),
+          artists,
           albumArt: current_track.album.images[0]?.url || "",
           isPlaying: !paused,
           duration,
@@ -218,6 +225,10 @@ export function NowPlayingBar() {
     }
   };
 
+  const navigateToArtist = (artistId: string) => {
+    navigate(`/artists/${artistId}`);
+  };
+
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
@@ -260,7 +271,20 @@ export function NowPlayingBar() {
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <h3 className="font-medium text-sm truncate">{trackInfo.name}</h3>
           <p className="text-muted-foreground text-xs truncate">
-            {trackInfo.artists}
+            {trackInfo.artists.map((artist, index) => (
+              <span key={artist.id}>
+                {index > 0 && ", "}
+                <span
+                  className="hover:underline hover:text-primary cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateToArtist(artist.id);
+                  }}
+                >
+                  {artist.name}
+                </span>
+              </span>
+            ))}
           </p>
         </div>
       </div>
