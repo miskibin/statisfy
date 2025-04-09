@@ -7,6 +7,7 @@ import { Layout } from "./components/layout/Layout";
 import { UserPlaylists } from "./components/UserPlaylists";
 import { NewReleases } from "./components/NewReleases";
 import { listen } from "@tauri-apps/api/event";
+import { Header } from "./components/layout/Header";
 
 // Navigation function to update URL without page reload
 export function useNavigate() {
@@ -150,14 +151,28 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen font-sans">
-        <div className="animate-pulse text-sm">Loading...</div>
-      </div>
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <div className="flex flex-col h-screen w-full font-sans">
+          <Header onLogout={undefined} />
+          <div className="flex items-center justify-center flex-1">
+            <div className="animate-pulse text-sm">Loading...</div>
+          </div>
+        </div>
+      </ThemeProvider>
     );
   }
 
   if (!isAuthenticated) {
-    return <SpotifyLogin />;
+    return (
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+        <div className="flex flex-col h-screen w-full font-sans">
+          <Header onLogout={undefined} />
+          <div className="flex-1">
+            <SpotifyLogin />
+          </div>
+        </div>
+      </ThemeProvider>
+    );
   }
 
   return (

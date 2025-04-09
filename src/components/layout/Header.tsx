@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTheme } from "@/components/theme-provider";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+
 interface HeaderProps {
-  onLogout: () => void;
+  onLogout: (() => void) | undefined;
 }
 
 export const Header = memo(({ onLogout }: HeaderProps) => {
@@ -48,7 +49,7 @@ export const Header = memo(({ onLogout }: HeaderProps) => {
       className="border-b px-4 flex items-center justify-between h-14"
     >
       <div className="flex items-center gap-2">
-        <SidebarTrigger className="h-10 w-10" />
+        {onLogout && <SidebarTrigger className="h-10 w-10" />}
         <div className="font-medium text-lg">Statisfy</div>
       </div>
 
@@ -68,14 +69,16 @@ export const Header = memo(({ onLogout }: HeaderProps) => {
           <span className="sr-only">Toggle theme</span>
         </Button>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-10 gap-1 text-sm"
-          onClick={onLogout}
-        >
-          <LogOut className="h-4 w-4" /> Logout
-        </Button>
+        {onLogout && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-10 gap-1 text-sm"
+            onClick={onLogout}
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+        )}
 
         {/* Window controls */}
         <div className="flex items-center ml-2 -mr-4">

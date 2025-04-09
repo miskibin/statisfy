@@ -12,7 +12,7 @@ interface LayoutProps {
 
 export function Layout({ children, onLogout, navigate }: LayoutProps) {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full font-sans">
         <AppSidebar navigate={navigate} />
 

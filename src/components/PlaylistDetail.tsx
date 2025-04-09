@@ -11,6 +11,8 @@ import { SpotifyPlaylistDetails } from "@/utils/spotify.types";
 interface PlaylistDetailProps {
   playlistId: string;
   onBack: () => void;
+  isPlaying?: boolean;
+  onPlay?: (uri: string) => Promise<void>;
 }
 
 export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {

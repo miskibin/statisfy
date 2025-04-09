@@ -12,6 +12,8 @@ import { Star } from "lucide-react";
 interface AlbumDetailProps {
   albumId: string;
   onBack: () => void;
+  isPlaying?: boolean;
+  onPlay?: (uri: string) => Promise<void>;
 }
 
 export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
