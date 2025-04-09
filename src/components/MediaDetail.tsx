@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Play, Clock, ArrowLeft, Pause, Music } from "lucide-react";
@@ -253,23 +253,31 @@ export function MediaDetail({
 }: MediaDetailProps) {
   const [compact, setCompact] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollThreshold = 20;
 
-  const handleScroll = () => {
+  // Modified scroll handler with only threshold buffer
+  const handleScroll = useCallback(() => {
     if (scrollRef.current) {
       const scrollTop = scrollRef.current.scrollTop;
-      setCompact(scrollTop > 50);
+      // Add a small buffer around the threshold to prevent flickering
+      if (
+        (compact && scrollTop < scrollThreshold - 5) ||
+        (!compact && scrollTop > scrollThreshold + 5)
+      ) {
+        setCompact(scrollTop > scrollThreshold);
+      }
     }
-  };
+  }, [compact]);
 
   useEffect(() => {
     const currentRef = scrollRef.current;
     if (currentRef) {
-      currentRef.addEventListener("scroll", handleScroll);
+      currentRef.addEventListener("scroll", handleScroll, { passive: true });
       return () => {
         currentRef.removeEventListener("scroll", handleScroll);
       };
     }
-  }, []);
+  }, [handleScroll]);
 
   if (loading) {
     return <MediaDetailLoading onBack={onBack} title={title} />;
@@ -284,8 +292,9 @@ export function MediaDetail({
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto scrollbar scrollbar-thumb-accent scrollbar-track-base-100 scrollbar-thumb-rounded-full scrollbar-track-rounded-full"
+        onScroll={handleScroll}
       >
-        <div className="sticky top-0 bg-background z-10 transition-all duration-300">
+        <div className="sticky top-0 bg-background z-10">
           <div className="p-6">
             <MediaDetailHeader {...headerProps} compact={compact} />
           </div>

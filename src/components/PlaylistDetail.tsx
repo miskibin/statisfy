@@ -120,7 +120,6 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
               isPlaying: playlistIsPlaying,
               primaryInfo: (
                 <>
-                  <h2 className="text-3xl font-bold mb-1">{playlist.name}</h2>
                   {playlist.description && (
                     <p
                       className="text-muted-foreground mb-2"

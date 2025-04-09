@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getLikedSongs, playTrack, getCurrentPlayback } from "@/utils/spotify";
 import { MediaDetail } from "@/components/MediaDetail";
 import { SpotifySavedTrack } from "@/utils/spotify.types";
@@ -11,10 +11,33 @@ export function LikedSongs() {
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<{
     uri: string;
     isPlaying: boolean;
   } | null>(null);
+
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadingRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (loadingMore) return;
+      if (observerRef.current) observerRef.current.disconnect();
+
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasMore && !loadingMore) {
+            handleLoadMore();
+          }
+        },
+        {
+          rootMargin: "100px",
+        }
+      );
+
+      if (node) observerRef.current.observe(node);
+    },
+    [loadingMore, hasMore]
+  );
 
   // Fetch liked songs
   useEffect(() => {
@@ -36,6 +59,7 @@ export function LikedSongs() {
           }
           setTotal(result.total);
           setOffset(offsetValue);
+          setHasMore(offsetValue + result.items.length < result.total);
         } else {
           if (!append) {
             setError("Could not load your liked songs");
@@ -75,28 +99,29 @@ export function LikedSongs() {
     checkPlaybackState();
     const interval = setInterval(checkPlaybackState, 10000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
   }, []);
 
   const handleLoadMore = async () => {
-    if (offset + 50 < total) {
-      const fetchLikedSongs = async (offsetValue = 0, append = false) => {
-        setLoadingMore(true);
-
-        try {
-          const result = await getLikedSongs(50, offsetValue);
-          if (result && result.items) {
-            setLikedTracks((prev) => [...prev, ...result.items]);
-            setOffset(offsetValue);
-          }
-        } catch (err) {
-          console.error("Error loading more liked songs:", err);
-        } finally {
-          setLoadingMore(false);
+    if (offset + 50 < total && !loadingMore) {
+      setLoadingMore(true);
+      try {
+        const result = await getLikedSongs(50, offset + 50);
+        if (result && result.items) {
+          setLikedTracks((prev) => [...prev, ...result.items]);
+          setOffset(offset + 50);
+          setHasMore(offset + 50 + result.items.length < result.total);
         }
-      };
-
-      fetchLikedSongs(offset + 50, true);
+      } catch (err) {
+        console.error("Error loading more liked songs:", err);
+      } finally {
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -178,6 +203,9 @@ export function LikedSongs() {
           addedAt: formatAddedDate(item.added_at),
         };
       })}
+      loadingMore={loadingMore}
+      loadingRef={loadingRef}
+      hasMore={hasMore}
     />
   );
 }
