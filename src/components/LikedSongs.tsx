@@ -3,6 +3,7 @@ import { getLikedSongs, playTrack, getCurrentPlayback } from "@/utils/spotify";
 import { MediaDetail } from "@/components/MediaDetail";
 import { SpotifySavedTrack } from "@/utils/spotify.types";
 import { Heart } from "lucide-react";
+import { useNavigate } from "@/App";
 
 export function LikedSongs() {
   const [likedTracks, setLikedTracks] = useState<SpotifySavedTrack[]>([]);
@@ -18,6 +19,8 @@ export function LikedSongs() {
   } | null>(null);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const navigate = useNavigate();
+
   const loadingRef = useCallback(
     (node: HTMLDivElement) => {
       if (loadingMore) return;
@@ -39,6 +42,22 @@ export function LikedSongs() {
     [loadingMore, hasMore]
   );
 
+  // Handle navigation to artist page
+  const handleArtistClick = useCallback(
+    (artistId: string) => {
+      navigate(`/artists/${artistId}`);
+    },
+    [navigate]
+  );
+
+  // Handle navigation to album page
+  const handleAlbumClick = useCallback(
+    (albumId: string) => {
+      navigate(`/albums/${albumId}`);
+    },
+    [navigate]
+  );
+
   // Fetch liked songs
   useEffect(() => {
     const fetchLikedSongs = async (offsetValue = 0, append = false) => {
@@ -52,6 +71,12 @@ export function LikedSongs() {
       try {
         const result = await getLikedSongs(50, offsetValue);
         if (result && result.items) {
+          // Log first track to verify album data
+          if (result.items.length > 0 && !append) {
+            console.log("First liked track:", result.items[0].track);
+            console.log("Album data:", result.items[0].track.album);
+          }
+
           if (append) {
             setLikedTracks((prev) => [...prev, ...result.items]);
           } else {
@@ -196,11 +221,19 @@ export function LikedSongs() {
           index: i + 1,
           name: track.name,
           artists: track.artists.map((a) => a.name).join(", "),
+          artistsData: track.artists.map((artist) => ({
+            id: artist.id,
+            name: artist.name,
+          })),
           duration: track.duration_ms,
           uri: track.uri,
           onPlay: handlePlayTrack,
           isCurrentTrack,
           addedAt: formatAddedDate(item.added_at),
+          onArtistClick: handleArtistClick,
+          albumId: track.album.id,
+          albumName: track.album.name,
+          onAlbumClick: handleAlbumClick,
         };
       })}
       loadingMore={loadingMore}

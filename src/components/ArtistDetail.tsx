@@ -150,12 +150,17 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
         id: artist.id,
         name: artist.name,
       })),
+      albumId: track.album.id,
+      albumName: track.album.name,
       duration: track.duration_ms,
       uri: track.uri,
       onPlay: handlePlayTrack,
       isCurrentTrack: track.id === currentlyPlayingTrackId,
       isPlaying: isPlaying && track.id === currentlyPlayingTrackId,
       onArtistClick: handleArtistClick,
+      onAlbumClick: (albumId: string) => {
+        navigate(`/albums/${albumId}`);
+      },
     }));
   }, [
     topTracks,
@@ -163,6 +168,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     isPlaying,
     handlePlayTrack,
     handleArtistClick,
+    navigate,
   ]);
 
   // Create header props for MediaDetail

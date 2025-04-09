@@ -244,6 +244,8 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
               id: artist.id,
               name: artist.name,
             })),
+            albumId: album.id, // Include current album data for consistency
+            albumName: album.name,
             duration: track.duration_ms,
             uri: track.uri,
             onPlay: handlePlayTrack,

@@ -26,6 +26,9 @@ interface MediaDetailTrackProps {
   isPlaying?: boolean;
   isCurrentTrack?: boolean;
   onArtistClick?: (artistId: string) => void;
+  albumId?: string;
+  albumName?: string;
+  onAlbumClick?: (albumId: string) => void;
 }
 
 interface MediaDetailProps {
@@ -115,10 +118,13 @@ function MediaDetailTrack({
   onPlay,
   isCurrentTrack,
   onArtistClick,
+  albumId,
+  albumName,
+  onAlbumClick,
 }: MediaDetailTrackProps) {
   return (
     <div
-      className={`grid grid-cols-[auto_1fr_auto] gap-4 px-4 py-2 hover:bg-muted/30 rounded-md group cursor-pointer ${
+      className={`grid grid-cols-[auto_2fr_1.5fr_auto] gap-4 px-4 py-2 hover:bg-muted/30 rounded-md group cursor-pointer ${
         isCurrentTrack ? "bg-muted/50" : ""
       }`}
       onClick={() => onPlay(uri)}
@@ -164,6 +170,22 @@ function MediaDetailTrack({
             : // Default non-clickable artist string
               artists}
         </div>
+      </div>
+
+      <div className="min-w-0 text-sm text-muted-foreground self-center truncate block">
+        {albumName && onAlbumClick && albumId ? (
+          <span
+            className="truncate hover:underline hover:text-primary cursor-pointer inline-block max-w-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAlbumClick(albumId);
+            }}
+          >
+            {albumName}
+          </span>
+        ) : albumName ? (
+          <span className="truncate inline-block max-w-full">{albumName}</span>
+        ) : null}
       </div>
 
       <div className="text-xs text-muted-foreground self-center">
@@ -269,9 +291,10 @@ export function MediaDetail({
 
       {/* Track listing */}
       <div className="px-6 pb-6 mt-12">
-        <div className="grid grid-cols-[auto_1fr_auto] gap-4 mb-1 px-4 text-xs text-muted-foreground font-medium border-b border-muted/20 pb-2">
+        <div className="grid grid-cols-[auto_2fr_1.5fr_auto] gap-4 mb-1 px-4 text-xs text-muted-foreground font-medium border-b border-muted/20 pb-2">
           <div className="w-8">#</div>
           <div>TITLE</div>
+          <div>ALBUM</div>
           <div className="flex items-center gap-2 justify-self-end">
             <Clock className="h-3 w-3" />
           </div>

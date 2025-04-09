@@ -9,6 +9,7 @@ import { NewReleases } from "./components/NewReleases";
 import { LikedSongs } from "./components/LikedSongs";
 import { Artists } from "./components/Artists"; // Import Artists component
 import { ArtistDetail } from "./components/ArtistDetail"; // Import ArtistDetail component
+import { AlbumDetail } from "./components/AlbumDetail"; // Import AlbumDetail component
 import { listen } from "@tauri-apps/api/event";
 import { Header } from "./components/layout/Header";
 
@@ -33,6 +34,13 @@ const MainContent = memo(
     if (currentView.startsWith("artists/")) {
       const artistId = params.id || currentView.split("/")[1];
       return <ArtistDetail artistId={artistId} />;
+    }
+
+    if (currentView.startsWith("albums/")) {
+      const albumId = params.id || currentView.split("/")[1];
+      return (
+        <AlbumDetail albumId={albumId} onBack={() => window.history.back()} />
+      );
     }
 
     switch (currentView) {
@@ -113,6 +121,14 @@ function App() {
         const artistId = path.split("/")[2];
         if (artistId) {
           params.id = artistId;
+        }
+      }
+
+      // Check if the path contains album ID
+      if (path.startsWith("/albums/")) {
+        const albumId = path.split("/")[2];
+        if (albumId) {
+          params.id = albumId;
         }
       }
 

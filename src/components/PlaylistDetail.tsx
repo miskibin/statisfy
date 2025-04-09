@@ -170,6 +170,11 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
     navigate(`/artists/${artistId}`);
   };
 
+  // Navigate to album page
+  const handleAlbumClick = (albumId: string) => {
+    navigate(`/albums/${albumId}`);
+  };
+
   return (
     <MediaDetail
       title={playlist?.name || "Playlist"}
@@ -227,12 +232,15 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
               id: artist.id,
               name: artist.name,
             })),
+            albumId: track.album.id,
+            albumName: track.album.name,
             duration: track.duration_ms,
             uri: track.uri,
             onPlay: handlePlayTrack,
             isCurrentTrack,
             isPlaying: isCurrentTrack && currentlyPlaying?.isPlaying,
             onArtistClick: handleArtistClick,
+            onAlbumClick: handleAlbumClick,
           };
         }) || []
       }
