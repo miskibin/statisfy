@@ -8,6 +8,7 @@ import {
 import { MediaDetail } from "@/components/MediaDetail";
 import { SpotifyAlbumDetails } from "@/utils/spotify.types";
 import { Star } from "lucide-react";
+import { useNavigate } from "@/App";
 
 interface AlbumDetailProps {
   albumId: string;
@@ -25,6 +26,7 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
     isPlaying: boolean;
   } | null>(null);
   const [albumIsPlaying, setAlbumIsPlaying] = useState(false);
+  const navigate = useNavigate(); // Added navigate for artist navigation
 
   // Fetch album details
   useEffect(() => {
@@ -101,6 +103,11 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
     }
   };
 
+  // Handle artist click to navigate to artist detail page
+  const handleArtistClick = (artistId: string) => {
+    navigate(`/artists/${artistId}`);
+  };
+
   if (!album && !loading && !error) {
     return null;
   }
@@ -154,6 +161,27 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
     );
   };
 
+  // Create clickable artist links for the album header
+  const renderArtistLinks = () => {
+    if (!album) return null;
+
+    return (
+      <p className="text-sm font-medium mb-1">
+        {album.artists.map((artist, index) => (
+          <span key={artist.id}>
+            {index > 0 && ", "}
+            <span
+              className="hover:underline hover:text-primary cursor-pointer"
+              onClick={() => handleArtistClick(artist.id)}
+            >
+              {artist.name}
+            </span>
+          </span>
+        ))}
+      </p>
+    );
+  };
+
   return (
     <MediaDetail
       title={album?.name || "Album"}
@@ -170,9 +198,7 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
               isPlaying: albumIsPlaying,
               primaryInfo: (
                 <>
-                  <p className="text-sm font-medium mb-1">
-                    {album.artists.map((a) => a.name).join(", ")}
-                  </p>
+                  {renderArtistLinks()}
                   <p className="text-sm text-muted-foreground mb-1">
                     {formatReleaseDate(
                       album.release_date,
@@ -214,10 +240,16 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
             index: track.track_number,
             name: track.name,
             artists: track.artists.map((a) => a.name).join(", "),
+            artistsData: track.artists.map((artist) => ({
+              id: artist.id,
+              name: artist.name,
+            })),
             duration: track.duration_ms,
             uri: track.uri,
             onPlay: handlePlayTrack,
             isCurrentTrack,
+            isPlaying: isCurrentTrack && currentlyPlaying?.isPlaying,
+            onArtistClick: handleArtistClick,
           };
         }) || []
       }

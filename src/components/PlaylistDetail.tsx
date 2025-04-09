@@ -1,21 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "@/App";
+import { MediaDetail } from "@/components/MediaDetail";
 import {
   getPlaylistDetails,
-  playTrack,
   playPlaylist,
+  playTrack,
   getCurrentPlayback,
 } from "@/utils/spotify";
-import { MediaDetail } from "@/components/MediaDetail";
-import { SpotifyPlaylistDetails } from "@/utils/spotify.types";
+import {
+  SpotifyPlaylistDetails,
+  SpotifyPagingObject,
+  SpotifyPlaylistTrack,
+} from "@/utils/spotify.types";
+import { spotifyApi } from "@/utils/apiClient";
 
 interface PlaylistDetailProps {
   playlistId: string;
-  onBack: () => void;
-  isPlaying?: boolean;
-  onPlay?: (uri: string) => Promise<void>;
 }
 
-export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
+export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
   const [playlist, setPlaylist] = useState<SpotifyPlaylistDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +27,9 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
     isPlaying: boolean;
   } | null>(null);
   const [playlistIsPlaying, setPlaylistIsPlaying] = useState(false);
+  const [loadingMoreTracks, setLoadingMoreTracks] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const navigate = useNavigate();
 
   // Fetch playlist details
   useEffect(() => {
@@ -86,9 +92,65 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
     }
   }, [playlist]);
 
+  // Function to load more tracks when user scrolls to the bottom
+  const loadMoreTracks = async () => {
+    if (!playlist || !playlist.tracks.next || loadingMoreTracks) return false;
+
+    setLoadingMoreTracks(true);
+    try {
+      const nextUrl = playlist.tracks.next;
+      // Extract URL path without base API URL
+      const path = nextUrl.substring(
+        nextUrl.indexOf("v1/") + 2,
+        nextUrl.length
+      );
+
+      const moreTracksData = await spotifyApi.get<
+        SpotifyPagingObject<SpotifyPlaylistTrack>
+      >(path);
+
+      if (moreTracksData && moreTracksData.items) {
+        setPlaylist({
+          ...playlist,
+          tracks: {
+            ...playlist.tracks,
+            items: [...playlist.tracks.items, ...moreTracksData.items],
+            next: moreTracksData.next,
+          },
+        });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error loading more tracks:", error);
+      return false;
+    } finally {
+      setLoadingMoreTracks(false);
+    }
+  };
+
+  // Handle intersection with load more trigger
+  const loadingRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (loadingMoreTracks) return;
+      if (observerRef.current) observerRef.current.disconnect();
+
+      observerRef.current = new IntersectionObserver((entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMoreTracks();
+        }
+      });
+
+      if (node) observerRef.current.observe(node);
+    },
+    [loadingMoreTracks]
+  );
+
   const handlePlayTrack = async (uri: string) => {
-    await playTrack(uri);
-    setCurrentlyPlaying({ uri, isPlaying: true });
+    const success = await playTrack(uri);
+    if (success) {
+      setCurrentlyPlaying({ uri, isPlaying: true });
+    }
   };
 
   const handlePlayPlaylist = async () => {
@@ -100,66 +162,74 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
     }
   };
 
-  if (!playlist && !loading && !error) {
-    return null;
-  }
+  // Navigate to artist profile
+  const handleArtistClick = (artistId: string) => {
+    navigate(`/artists/${artistId}`);
+  };
 
   return (
     <MediaDetail
       title={playlist?.name || "Playlist"}
       loading={loading}
       error={error}
-      onBack={onBack}
+      onBack={() => navigate("/playlists")}
+      loadingRef={loadingRef}
+      loadingMore={loadingMoreTracks}
+      hasMore={!!playlist?.tracks.next}
       headerProps={
         playlist
           ? {
-              name: playlist.name,
               images: playlist.images,
-              onBack,
-              onPlay: handlePlayPlaylist,
-              isPlaying: playlistIsPlaying,
+              name: playlist.name,
               primaryInfo: (
-                <>
-                  {playlist.description && (
-                    <p
-                      className="text-muted-foreground mb-2"
-                      dangerouslySetInnerHTML={{ __html: playlist.description }}
-                    />
-                  )}
-                  <p className="text-sm mb-1">{playlist.tracks.total} tracks</p>
-                  {playlist.owner && (
-                    <p className="text-xs text-muted-foreground mb-4">
-                      By {playlist.owner.display_name}
-                    </p>
-                  )}
-                </>
+                <p className="text-muted-foreground mb-1">
+                  By {playlist.owner?.display_name || "Unknown"}
+                </p>
               ),
               secondaryInfo: (
                 <>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    {playlist.tracks.total} tracks
+                  </p>
+                  {playlist.description && (
+                    <p
+                      className="text-sm text-muted-foreground mb-1"
+                      dangerouslySetInnerHTML={{ __html: playlist.description }}
+                    />
+                  )}
                   {playlist.followers && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mb-1">
                       {playlist.followers.total.toLocaleString()} followers
                     </p>
                   )}
                 </>
               ),
+              onPlay: handlePlayPlaylist,
+              onBack: () => navigate("/playlists"),
+              isPlaying: playlistIsPlaying,
             }
           : undefined
       }
       tracks={
-        playlist?.tracks.items.map((item, i) => {
-          const track = item.track;
+        playlist?.tracks.items.map((item, index) => {
+          const { track } = item;
           const isCurrentTrack = currentlyPlaying?.uri === track.uri;
 
           return {
             id: track.id,
-            index: i + 1,
+            index: index + 1,
             name: track.name,
             artists: track.artists.map((a) => a.name).join(", "),
+            artistsData: track.artists.map((artist) => ({
+              id: artist.id,
+              name: artist.name,
+            })),
             duration: track.duration_ms,
             uri: track.uri,
             onPlay: handlePlayTrack,
             isCurrentTrack,
+            isPlaying: isCurrentTrack && currentlyPlaying?.isPlaying,
+            onArtistClick: handleArtistClick,
           };
         }) || []
       }

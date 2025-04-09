@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@/App";
 import { MediaDetail } from "./MediaDetail";
-import { MediaGrid } from "./MediaGrid";
+import { AlbumDetail } from "./AlbumDetail";
 import {
   getArtistDetails,
   getArtistTopTracks,
@@ -16,7 +16,7 @@ import {
 } from "@/utils/spotify.types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Disc, Music } from "lucide-react";
+import { Disc, Play } from "lucide-react";
 
 interface ArtistDetailProps {
   artistId: string;
@@ -27,6 +27,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     useState<SpotifyArtistDetails | null>(null);
   const [topTracks, setTopTracks] = useState<SpotifyTrackItem[]>([]);
   const [albums, setAlbums] = useState<SpotifyAlbum[]>([]);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentlyPlayingTrackId, setCurrentlyPlayingTrackId] = useState<
@@ -120,20 +121,39 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     }
   }, []);
 
-  // Format the track data for MediaDetail component
+  // Handle navigation to another artist
+  const handleArtistClick = useCallback(
+    (artistId: string) => {
+      navigate(`/artists/${artistId}`);
+    },
+    [navigate]
+  );
+
+  // Format the track data for MediaDetail component with artist data
   const mediaDetailTracks = useMemo(() => {
     return topTracks.map((track, index) => ({
       id: track.id,
       index: index + 1,
       name: track.name,
       artists: track.artists.map((artist) => artist.name).join(", "),
+      artistsData: track.artists.map((artist) => ({
+        id: artist.id,
+        name: artist.name,
+      })),
       duration: track.duration_ms,
       uri: track.uri,
       onPlay: handlePlayTrack,
       isCurrentTrack: track.id === currentlyPlayingTrackId,
       isPlaying: isPlaying && track.id === currentlyPlayingTrackId,
+      onArtistClick: handleArtistClick,
     }));
-  }, [topTracks, currentlyPlayingTrackId, isPlaying, handlePlayTrack]);
+  }, [
+    topTracks,
+    currentlyPlayingTrackId,
+    isPlaying,
+    handlePlayTrack,
+    handleArtistClick,
+  ]);
 
   // Create header props for MediaDetail
   const headerProps = useMemo(() => {
@@ -207,32 +227,76 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     );
   }
 
+  // If an album is selected, show the album detail view
+  if (selectedAlbumId) {
+    return (
+      <AlbumDetail
+        albumId={selectedAlbumId}
+        onBack={() => setSelectedAlbumId(null)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Top section with artist info and top tracks */}
-      <MediaDetail
-        title={artistDetails.name}
-        loading={false}
-        error={null}
-        headerProps={headerProps}
-        tracks={mediaDetailTracks}
-        onBack={() => navigate("/artists")}
-      />
-
-      {/* Albums section */}
-      <div className="px-6">
-        <h2 className="text-xl font-bold mb-4">Albums</h2>
-        <MediaGrid
-          title=""
-          items={albums}
+      {/* Artist info header and tabs */}
+      <div className="px-6 pb-0">
+        <MediaDetail
+          title={artistDetails.name}
           loading={false}
           error={null}
-          onRetry={() => window.location.reload()}
-          onPlay={handlePlayAlbum}
-          onSelect={(id) => navigate(`/albums/${id}`)}
-          type="album"
-          currentlyPlayingId={currentlyPlayingAlbumId}
+          headerProps={headerProps}
+          tracks={mediaDetailTracks}
+          onBack={() => navigate("/artists")}
         />
+      </div>
+
+      {/* Albums section */}
+      <div className="px-6 pb-6">
+        <h2 className="text-xl font-bold mb-4">Albums</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {albums.map((album) => (
+            <div
+              key={album.id}
+              className="group cursor-pointer"
+              onClick={() => setSelectedAlbumId(album.id)}
+            >
+              <div className="aspect-square bg-muted/40 rounded-md overflow-hidden relative mb-2">
+                {album.images && album.images.length > 0 ? (
+                  <img
+                    src={album.images[0].url}
+                    alt={album.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Disc className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="rounded-full h-12 w-12"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      album.uri && handlePlayAlbum(album.uri);
+                    }}
+                  >
+                    <Play className="h-6 w-6 ml-0.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="truncate font-medium">{album.name}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {album.release_date?.substring(0, 4)} •{" "}
+                {album.name.toLowerCase().includes("single")
+                  ? "Single"
+                  : "Album"}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

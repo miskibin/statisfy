@@ -19,11 +19,13 @@ interface MediaDetailTrackProps {
   index: number;
   name: string;
   artists: string;
+  artistsData?: Array<{ id: string; name: string }>; // Added artistsData for clickable artists
   duration: number;
   uri: string;
   onPlay: (uri: string) => Promise<void>;
   isPlaying?: boolean;
   isCurrentTrack?: boolean;
+  onArtistClick?: (artistId: string) => void; // Added callback for artist click
 }
 
 interface MediaDetailProps {
@@ -131,10 +133,12 @@ function MediaDetailTrack({
   index,
   name,
   artists,
+  artistsData,
   duration,
   uri,
   onPlay,
   isCurrentTrack,
+  onArtistClick,
 }: MediaDetailTrackProps) {
   return (
     <div
@@ -164,7 +168,26 @@ function MediaDetailTrack({
         >
           {name}
         </div>
-        <div className="truncate text-xs text-muted-foreground">{artists}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {artistsData && onArtistClick
+            ? // Render clickable artist names
+              artistsData.map((artist, i) => (
+                <span key={artist.id}>
+                  {i > 0 && ", "}
+                  <span
+                    className="hover:underline hover:text-primary cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onArtistClick(artist.id);
+                    }}
+                  >
+                    {artist.name}
+                  </span>
+                </span>
+              ))
+            : // Default non-clickable artist string
+              artists}
+        </div>
       </div>
 
       <div className="text-xs text-muted-foreground self-center">
@@ -254,7 +277,7 @@ export function MediaDetail({
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollThreshold = 20;
 
-  // Modified scroll handler with only threshold buffer
+  // Modified scroll handler that only enables compact mode when content is tall enough
   const handleScroll = useCallback(() => {
     if (scrollRef.current) {
       const scrollTop = scrollRef.current.scrollTop;

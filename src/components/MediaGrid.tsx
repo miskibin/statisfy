@@ -81,14 +81,14 @@ export function MediaGrid({
 
   if (loading && items.length === 0) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">{title}</h1>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {[...Array(10)].map((_, i) => (
+      <div className="p-4">
+        <h1 className="text-xl font-medium mb-4">{title}</h1>
+        <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-5">
+          {[...Array(16)].map((_, i) => (
             <div key={i} className="animate-pulse">
               <div className="aspect-square bg-muted/40 rounded-md mb-2"></div>
-              <div className="h-4 bg-muted/40 rounded-md w-3/4 mb-1"></div>
-              <div className="h-3 bg-muted/40 rounded-md w-1/2"></div>
+              <div className="h-2.5 bg-muted/40 rounded-md w-3/4 mb-1"></div>
+              <div className="h-2 bg-muted/40 rounded-md w-1/2"></div>
             </div>
           ))}
         </div>
@@ -98,10 +98,12 @@ export function MediaGrid({
 
   if (error && items.length === 0) {
     return (
-      <div className="p-6">
-        <Card className="p-6 text-center">
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={onRetry}>Retry</Button>
+      <div className="p-4">
+        <Card className="p-4 text-center">
+          <p className="text-muted-foreground text-sm mb-3">{error}</p>
+          <Button size="sm" onClick={onRetry}>
+            Retry
+          </Button>
         </Card>
       </div>
     );
@@ -109,9 +111,9 @@ export function MediaGrid({
 
   if (items.length === 0) {
     return (
-      <div className="p-6">
-        <Card className="p-6 text-center">
-          <p className="text-muted-foreground">
+      <div className="p-4">
+        <Card className="p-4 text-center">
+          <p className="text-muted-foreground text-sm">
             {type === "playlist"
               ? "You don't have any playlists yet"
               : "No albums available"}
@@ -124,23 +126,19 @@ export function MediaGrid({
   const Icon = type === "playlist" ? ListMusic : Disc;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{title}</h1>
+    <div className="p-4">
+      <div className="mb-3">
+        <h1 className="text-xl font-medium">{title}</h1>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-8">
         {items.map((item) => {
           const isPlaying = currentlyPlayingId === item.id;
           return (
-            <div key={item.id} className="group">
+            <div key={item.id} className="group flex flex-col">
+              {/* Image container - smaller tile */}
               <div
-                className={`aspect-square bg-muted/40 rounded-md overflow-hidden relative mb-2 cursor-pointer
-                  ${
-                    isPlaying
-                      ? "opacity-100 ring-1 ring-primary"
-                      : "group-hover:opacity-80"
-                  } transition-opacity`}
+                className="aspect-square bg-muted/40 rounded-md overflow-hidden relative cursor-pointer mb-1.5"
                 onClick={() => onSelect && item.id && onSelect(item.id)}
               >
                 {item.images &&
@@ -156,50 +154,48 @@ export function MediaGrid({
                     <Icon className="h-1/4 w-1/4 text-muted-foreground" />
                   </div>
                 )}
-                {onPlay && (
-                  <div
-                    className={`absolute inset-0 flex items-center justify-center ${
-                      isPlaying
-                        ? "opacity-100"
-                        : "opacity-0 group-hover:opacity-100"
-                    } transition-opacity`}
-                  >
+              </div>
+
+              {/* Content below image */}
+              <div className="flex flex-col">
+                <div
+                  className={`truncate text-xs font-medium cursor-pointer ${
+                    isPlaying ? "text-primary" : ""
+                  }`}
+                  onClick={() => onSelect && item.id && onSelect(item.id)}
+                >
+                  {item.name}
+                </div>
+
+                <div className="flex justify-between items-center mt-0.5">
+                  <div className="truncate text-xs text-muted-foreground flex-1">
+                    {type === "playlist" ? (
+                      <span>{item.tracks?.total || 0} tracks</span>
+                    ) : (
+                      <span>{item.artists?.map((a) => a.name).join(", ")}</span>
+                    )}
+                  </div>
+
+                  {/* Play/Pause button below the image and info */}
+                  {onPlay && item.uri && (
                     <Button
-                      variant={isPlaying ? "secondary" : "default"}
+                      variant="ghost"
                       size="icon"
-                      className="rounded-full h-12 w-12"
+                      className="h-5 w-5 p-0.5 rounded-full"
                       onClick={(e) => {
-                        e.stopPropagation(); // Prevent triggering the parent onClick
+                        e.stopPropagation();
                         item.uri && onPlay(item.uri);
                       }}
                     >
                       {isPlaying ? (
-                        <Pause className="h-6 w-6" />
+                        <Pause className="h-3 w-3" />
                       ) : (
-                        <Play className="h-6 w-6 ml-0.5" />
+                        <Play className="h-3 w-3 ml-0.5" />
                       )}
                     </Button>
-                  </div>
-                )}
-              </div>
-              <div
-                className={`truncate font-medium cursor-pointer ${
-                  isPlaying ? "text-primary" : ""
-                }`}
-                onClick={() => onSelect && item.id && onSelect(item.id)}
-              >
-                {item.name}
-              </div>
-              {type === "playlist" ? (
-                <div className="truncate text-xs text-muted-foreground">
-                  {item.tracks?.total || 0} tracks
+                  )}
                 </div>
-              ) : (
-                <div className="truncate text-xs text-muted-foreground">
-                  {item.artists?.map((a) => a.name).join(", ")}
-                  {item.total_tracks && ` • ${item.total_tracks} tracks`}
-                </div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -207,14 +203,14 @@ export function MediaGrid({
 
       {/* Element to observe for infinite scrolling */}
       {hasMore && (
-        <div ref={loadMoreRef} className="flex justify-center py-8">
+        <div ref={loadMoreRef} className="flex justify-center py-4">
           {loadingMore ? (
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <div className="flex flex-col items-center gap-1">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
               <p className="text-xs text-muted-foreground">Loading more...</p>
             </div>
           ) : (
-            <div className="h-8" /> // Invisible element for intersection observer
+            <div className="h-4" /> // Invisible element for intersection observer
           )}
         </div>
       )}
