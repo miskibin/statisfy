@@ -6,6 +6,16 @@ const CLIENT_ID =
 const CLIENT_SECRET =
   import.meta.env.VITE_CLIENT_SECRET || "11927441af564be5b45888ba20aa3113";
 
+// Extend window interface for Spotify SDK
+declare global {
+  interface Window {
+    Spotify: {
+      Player: any;
+    };
+    onSpotifyWebPlaybackSDKReady: () => void;
+  }
+}
+
 // Cache interface
 interface CacheItem {
   data: any;
@@ -72,6 +82,57 @@ export interface SpotifyPlaybackState {
     uri: string;
     type: string;
   } | null;
+}
+
+// Web Playback SDK interfaces
+export interface WebPlaybackError {
+  message: string;
+}
+
+export interface WebPlaybackReady {
+  device_id: string;
+}
+
+export interface WebPlaybackState {
+  context: {
+    uri: string;
+    metadata: any;
+  };
+  disallows: {
+    pausing: boolean;
+    peeking_next: boolean;
+    peeking_prev: boolean;
+    resuming: boolean;
+    seeking: boolean;
+    skipping_next: boolean;
+    skipping_prev: boolean;
+  };
+  track_window: {
+    current_track: WebPlaybackTrack;
+    previous_tracks: WebPlaybackTrack[];
+    next_tracks: WebPlaybackTrack[];
+  };
+  paused: boolean;
+  position: number;
+  duration: number;
+  repeat_mode: number;
+  shuffle: boolean;
+  timestamp: number;
+}
+
+export interface WebPlaybackTrack {
+  uri: string;
+  id: string;
+  type: string;
+  media_type: string;
+  name: string;
+  is_playable: boolean;
+  album: {
+    uri: string;
+    name: string;
+    images: { url: string }[];
+  };
+  artists: { uri: string; name: string }[];
 }
 
 export class SpotifyApiClient {

@@ -1,5 +1,5 @@
 use tauri::Emitter;
-use tauri_plugin_deep_link::DeepLinkExt; // Add this import to use the emit method
+use tauri_plugin_deep_link::DeepLinkExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,10 +30,13 @@ pub fn run() {
                 }
             });
 
-            // Register deep link scheme for development and testing
-            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            // Always register the deep link scheme, not just in debug mode
+            #[cfg(desktop)]
             {
-                app.deep_link().register("statisfy")?;
+                match app.deep_link().register("statisfy") {
+                    Ok(_) => println!("Registered statisfy:// protocol handler"),
+                    Err(err) => eprintln!("Failed to register protocol handler: {}", err),
+                }
             }
 
             Ok(())
