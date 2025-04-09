@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Play, Pause, ListMusic, Disc } from "lucide-react";
+import { ListMusic, Disc } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useEffect, useRef } from "react";
+import { MediaCard } from "./MediaCard";
 
 interface MediaItem {
   id: string;
@@ -83,8 +84,8 @@ export function MediaGrid({
     return (
       <div className="p-4">
         <h1 className="text-xl font-medium mb-4">{title}</h1>
-        <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-5">
-          {[...Array(16)].map((_, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {[...Array(12)].map((_, i) => (
             <div key={i} className="animate-pulse">
               <div className="aspect-square bg-muted/40 rounded-md mb-2"></div>
               <div className="h-2.5 bg-muted/40 rounded-md w-3/4 mb-1"></div>
@@ -127,76 +128,31 @@ export function MediaGrid({
 
   return (
     <div className="p-4">
-      <div className="mb-3">
+      <div className="mb-4">
         <h1 className="text-xl font-medium">{title}</h1>
       </div>
 
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {items.map((item) => {
           const isPlaying = currentlyPlayingId === item.id;
+
           return (
-            <div key={item.id} className="group flex flex-col">
-              {/* Image container - smaller tile */}
-              <div
-                className="aspect-square bg-muted/40 rounded-md overflow-hidden relative cursor-pointer mb-1.5"
-                onClick={() => onSelect && item.id && onSelect(item.id)}
-              >
-                {item.images &&
-                item.images.length > 0 &&
-                item.images[0]?.url ? (
-                  <img
-                    src={item.images[0].url}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Icon className="h-1/4 w-1/4 text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-
-              {/* Content below image */}
-              <div className="flex flex-col">
-                <div
-                  className={`truncate text-xs font-medium cursor-pointer ${
-                    isPlaying ? "text-primary" : ""
-                  }`}
-                  onClick={() => onSelect && item.id && onSelect(item.id)}
-                >
-                  {item.name}
-                </div>
-
-                <div className="flex justify-between items-center mt-0.5">
-                  <div className="truncate text-xs text-muted-foreground flex-1">
-                    {type === "playlist" ? (
-                      <span>{item.tracks?.total || 0} tracks</span>
-                    ) : (
-                      <span>{item.artists?.map((a) => a.name).join(", ")}</span>
-                    )}
-                  </div>
-
-                  {/* Play/Pause button below the image and info */}
-                  {onPlay && item.uri && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 p-0.5 rounded-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        item.uri && onPlay(item.uri);
-                      }}
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-3 w-3" />
-                      ) : (
-                        <Play className="h-3 w-3 ml-0.5" />
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+            <MediaCard
+              key={item.id}
+              id={item.id}
+              name={item.name}
+              images={item.images}
+              uri={item.uri}
+              onClick={() => onSelect && onSelect(item.id)}
+              onPlay={onPlay}
+              isPlaying={isPlaying}
+              type={type}
+              secondaryInfo={
+                type === "playlist"
+                  ? `${item.tracks?.total || 0} tracks`
+                  : item.artists?.map((a) => a.name).join(", ")
+              }
+            />
           );
         })}
       </div>

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState, useCallback } from "react";
+import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Play, Clock, ArrowLeft, Pause, Music } from "lucide-react";
@@ -19,13 +19,13 @@ interface MediaDetailTrackProps {
   index: number;
   name: string;
   artists: string;
-  artistsData?: Array<{ id: string; name: string }>; // Added artistsData for clickable artists
+  artistsData?: Array<{ id: string; name: string }>;
   duration: number;
   uri: string;
   onPlay: (uri: string) => Promise<void>;
   isPlaying?: boolean;
   isCurrentTrack?: boolean;
-  onArtistClick?: (artistId: string) => void; // Added callback for artist click
+  onArtistClick?: (artistId: string) => void;
 }
 
 interface MediaDetailProps {
@@ -38,6 +38,7 @@ interface MediaDetailProps {
   loadingMore?: boolean;
   hasMore?: boolean;
   loadingRef?: (node: HTMLDivElement) => void;
+  noScrollContainer?: boolean; // New prop to control whether to add scrollable container
 }
 
 export function formatDuration(ms: number): string {
@@ -62,69 +63,45 @@ function MediaDetailHeader({
         <Button variant="ghost" size="icon" onClick={onBack} className="mr-2">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1
-          className={`${
-            compact ? "text-xl" : "text-2xl"
-          } font-bold text-ellipsis overflow-hidden whitespace-nowrap`}
-        >
+        <h1 className="text-2xl font-bold text-ellipsis overflow-hidden whitespace-nowrap">
           {name}
         </h1>
+      </div>
 
-        {compact && (
-          <Button
-            className="ml-auto w-fit flex items-center gap-2"
-            onClick={onPlay}
-            size="sm"
-          >
+      <div className="flex flex-row gap-6 mb-8 justify-between">
+        <div className="flex flex-col justify-between">
+          <div>
+            {primaryInfo}
+            {secondaryInfo}
+          </div>
+
+          <Button className="w-fit flex items-center gap-2" onClick={onPlay}>
             {isPlaying ? (
               <>
-                <Pause className="h-3 w-3" /> Pause
+                <Pause className="h-4 w-4" /> Pause
               </>
             ) : (
               <>
-                <Play className="h-3 w-3" /> Play
+                <Play className="h-4 w-4" /> Play
               </>
             )}
           </Button>
-        )}
-      </div>
-
-      {!compact && (
-        <div className="flex flex-row gap-6 mb-8 justify-between">
-          <div className="flex flex-col justify-between">
-            <div>
-              {primaryInfo}
-              {secondaryInfo}
-            </div>
-
-            <Button className="w-fit flex items-center gap-2" onClick={onPlay}>
-              {isPlaying ? (
-                <>
-                  <Pause className="h-4 w-4" /> Pause
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" /> Play
-                </>
-              )}
-            </Button>
-          </div>
-
-          <div className="w-48 h-48 shrink-0 bg-muted/40 rounded-md overflow-hidden transition-all duration-300">
-            {images && images.length > 0 ? (
-              <img
-                src={images[0].url}
-                alt={name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Music className="h-12 w-12 text-muted-foreground" />
-              </div>
-            )}
-          </div>
         </div>
-      )}
+
+        <div className="w-48 h-48 shrink-0 bg-muted/40 rounded-md overflow-hidden">
+          {images && images.length > 0 ? (
+            <img
+              src={images[0].url}
+              alt={name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Music className="h-12 w-12 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+      </div>
     </>
   );
 }
@@ -272,35 +249,8 @@ export function MediaDetail({
   loadingMore = false,
   hasMore = false,
   loadingRef,
+  noScrollContainer = false, // Default to false to maintain backward compatibility
 }: MediaDetailProps) {
-  const [compact, setCompact] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollThreshold = 20;
-
-  // Modified scroll handler that only enables compact mode when content is tall enough
-  const handleScroll = useCallback(() => {
-    if (scrollRef.current) {
-      const scrollTop = scrollRef.current.scrollTop;
-      // Add a small buffer around the threshold to prevent flickering
-      if (
-        (compact && scrollTop < scrollThreshold - 5) ||
-        (!compact && scrollTop > scrollThreshold + 5)
-      ) {
-        setCompact(scrollTop > scrollThreshold);
-      }
-    }
-  }, [compact]);
-
-  useEffect(() => {
-    const currentRef = scrollRef.current;
-    if (currentRef) {
-      currentRef.addEventListener("scroll", handleScroll, { passive: true });
-      return () => {
-        currentRef.removeEventListener("scroll", handleScroll);
-      };
-    }
-  }, [handleScroll]);
-
   if (loading) {
     return <MediaDetailLoading onBack={onBack} title={title} />;
   }
@@ -309,46 +259,52 @@ export function MediaDetail({
     return <MediaDetailError error={error} onBack={onBack} title={title} />;
   }
 
-  return (
+  // The content of the component
+  const content = (
+    <>
+      <div className="bg-background">
+        <div className="p-6 pb-0">
+          <MediaDetailHeader {...headerProps} />
+        </div>
+      </div>
+
+      {/* Track listing */}
+      <div className="px-6 pb-6 mt-12">
+        <div className="grid grid-cols-[auto_1fr_auto] gap-4 mb-1 px-4 text-xs text-muted-foreground font-medium border-b border-muted/20 pb-2">
+          <div className="w-8">#</div>
+          <div>TITLE</div>
+          <div className="flex items-center gap-2 justify-self-end">
+            <Clock className="h-3 w-3" />
+          </div>
+        </div>
+
+        {tracks.map((track) => (
+          <MediaDetailTrack key={`${track.id}-${track.index}`} {...track} />
+        ))}
+
+        {loadingMore && (
+          <div className="flex justify-center py-4">
+            <div className="animate-pulse flex flex-col items-center">
+              <div className="h-4 bg-muted/40 rounded-md w-24 mb-2"></div>
+              <div className="h-4 bg-muted/40 rounded-md w-16"></div>
+            </div>
+          </div>
+        )}
+
+        {hasMore && !loadingMore && loadingRef && (
+          <div ref={loadingRef} className="h-8 w-full"></div>
+        )}
+      </div>
+    </>
+  );
+
+  // Return with or without the scrollable container based on noScrollContainer prop
+  return noScrollContainer ? (
+    content
+  ) : (
     <div className="h-full flex flex-col overflow-hidden">
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto scrollbar scrollbar-thumb-accent scrollbar-track-base-100 scrollbar-thumb-rounded-full scrollbar-track-rounded-full"
-        onScroll={handleScroll}
-      >
-        <div className="sticky top-0 bg-background z-10">
-          <div className="p-6 pb-0">
-            <MediaDetailHeader {...headerProps} compact={compact} />
-          </div>
-        </div>
-
-        {/* Track listing */}
-        <div className="px-6 pb-6 mt-12">
-          <div className="grid grid-cols-[auto_1fr_auto] gap-4 mb-1 px-4 text-xs text-muted-foreground font-medium border-b border-muted/20 pb-2">
-            <div className="w-8">#</div>
-            <div>TITLE</div>
-            <div className="flex items-center gap-2 justify-self-end">
-              <Clock className="h-3 w-3" />
-            </div>
-          </div>
-
-          {tracks.map((track) => (
-            <MediaDetailTrack key={`${track.id}-${track.index}`} {...track} />
-          ))}
-
-          {loadingMore && (
-            <div className="flex justify-center py-4">
-              <div className="animate-pulse flex flex-col items-center">
-                <div className="h-4 bg-muted/40 rounded-md w-24 mb-2"></div>
-                <div className="h-4 bg-muted/40 rounded-md w-16"></div>
-              </div>
-            </div>
-          )}
-
-          {hasMore && !loadingMore && loadingRef && (
-            <div ref={loadingRef} className="h-8 w-full"></div>
-          )}
-        </div>
+      <div className="flex-1 overflow-y-auto scrollbar scrollbar-thumb-accent scrollbar-track-base-100 scrollbar-thumb-rounded-full scrollbar-track-rounded-full">
+        {content}
       </div>
     </div>
   );

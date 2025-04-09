@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "@/App";
 import { MediaDetail } from "./MediaDetail";
 import { AlbumDetail } from "./AlbumDetail";
+import { MediaCard } from "./MediaCard";
 import {
   getArtistDetails,
   getArtistTopTracks,
@@ -16,7 +17,7 @@ import {
 } from "@/utils/spotify.types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Disc, Play } from "lucide-react";
+import { PersonStanding, Music } from "lucide-react";
 
 interface ArtistDetailProps {
   artistId: string;
@@ -37,6 +38,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     string | null
   >(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const albumsSectionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   // Load artist data
@@ -57,7 +59,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
         // Fetch top tracks
         const tracks = await getArtistTopTracks(artistId);
         if (tracks && tracks.tracks) {
-          setTopTracks(tracks.tracks.slice(0, 6)); // Limit to 6 top tracks
+          setTopTracks(tracks.tracks.slice(0, 10)); // Show top 10 tracks
         }
 
         // Fetch albums
@@ -96,6 +98,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
         const idParts = uri.split(":");
         if (idParts.length === 3) {
           setCurrentlyPlayingTrackId(idParts[2]);
+          setCurrentlyPlayingAlbumId(null);
           setIsPlaying(true);
         }
       }
@@ -113,6 +116,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
         const idParts = uri.split(":");
         if (idParts.length === 3) {
           setCurrentlyPlayingAlbumId(idParts[2]);
+          setCurrentlyPlayingTrackId(null);
           setIsPlaying(true);
         }
       }
@@ -120,6 +124,13 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
       console.error("Failed to play album:", error);
     }
   }, []);
+
+  // Handle artist playback
+  const handlePlayArtist = useCallback(async () => {
+    if (topTracks.length > 0) {
+      await handlePlayTrack(topTracks[0].uri);
+    }
+  }, [topTracks, handlePlayTrack]);
 
   // Handle navigation to another artist
   const handleArtistClick = useCallback(
@@ -160,7 +171,10 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     if (!artistDetails) return undefined;
 
     return {
-      images: artistDetails.images,
+      images:
+        artistDetails.images && artistDetails.images.length > 0
+          ? artistDetails.images
+          : [{ url: "" }],
       name: artistDetails.name,
       primaryInfo: (
         <p className="text-muted-foreground mb-2">
@@ -179,53 +193,17 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
           ))}
         </div>
       ),
-      onPlay: async () => {
-        if (topTracks.length > 0) {
-          await handlePlayTrack(topTracks[0].uri);
-        }
-      },
+      onPlay: handlePlayArtist,
       onBack: () => navigate("/artists"),
-      isPlaying: isPlaying,
-      compact: false,
+      isPlaying: isPlaying && !currentlyPlayingAlbumId,
     };
-  }, [artistDetails, topTracks, isPlaying, handlePlayTrack, navigate]);
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse">
-          <div className="h-10 bg-muted/40 rounded-md w-1/4 mb-4"></div>
-          <div className="flex gap-6 mb-8">
-            <div className="w-48 h-48 bg-muted/40 rounded-md"></div>
-            <div className="flex-1">
-              <div className="h-4 bg-muted/40 rounded-md w-1/3 mb-2"></div>
-              <div className="h-4 bg-muted/40 rounded-md w-1/2 mb-4"></div>
-              <div className="h-8 bg-muted/40 rounded-md w-24 mb-2"></div>
-            </div>
-          </div>
-          <div className="h-8 bg-muted/40 rounded-md w-1/3 mb-4"></div>
-          <div className="grid grid-cols-1 gap-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-12 bg-muted/40 rounded-md"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !artistDetails) {
-    return (
-      <div className="p-6">
-        <Card className="p-6 text-center">
-          <p className="text-muted-foreground mb-4">
-            {error || "Could not load artist details"}
-          </p>
-          <Button onClick={() => window.location.reload()}>Refresh</Button>
-        </Card>
-      </div>
-    );
-  }
+  }, [
+    artistDetails,
+    isPlaying,
+    currentlyPlayingAlbumId,
+    handlePlayArtist,
+    navigate,
+  ]);
 
   // If an album is selected, show the album detail view
   if (selectedAlbumId) {
@@ -238,66 +216,80 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Artist info header and tabs */}
-      <div className="px-6 pb-0">
+    <div className="h-full flex flex-col overflow-hidden">
+      {loading ? (
         <MediaDetail
-          title={artistDetails.name}
-          loading={false}
+          title="Artist"
+          loading={true}
           error={null}
-          headerProps={headerProps}
-          tracks={mediaDetailTracks}
+          headerProps={undefined}
+          tracks={[]}
           onBack={() => navigate("/artists")}
         />
-      </div>
+      ) : error || !artistDetails ? (
+        <MediaDetail
+          title="Artist"
+          loading={false}
+          error={error || "Could not load artist details"}
+          headerProps={undefined}
+          tracks={[]}
+          onBack={() => navigate("/artists")}
+        />
+      ) : (
+        <div className="h-full flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto scrollbar scrollbar-thumb-accent scrollbar-track-base-100 scrollbar-thumb-rounded-full scrollbar-track-rounded-full">
+            {/* Artist details and top tracks */}
+            <MediaDetail
+              title={artistDetails.name}
+              loading={false}
+              error={null}
+              headerProps={headerProps}
+              tracks={mediaDetailTracks}
+              onBack={() => navigate("/artists")}
+              noScrollContainer={true}
+            />
 
-      {/* Albums section */}
-      <div className="px-6 pb-6">
-        <h2 className="text-xl font-bold mb-4">Albums</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {albums.map((album) => (
-            <div
-              key={album.id}
-              className="group cursor-pointer"
-              onClick={() => setSelectedAlbumId(album.id)}
-            >
-              <div className="aspect-square bg-muted/40 rounded-md overflow-hidden relative mb-2">
-                {album.images && album.images.length > 0 ? (
-                  <img
-                    src={album.images[0].url}
-                    alt={album.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Disc className="h-12 w-12 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="rounded-full h-12 w-12"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      album.uri && handlePlayAlbum(album.uri);
-                    }}
-                  >
-                    <Play className="h-6 w-6 ml-0.5" />
-                  </Button>
+            {/* Albums section */}
+            <div ref={albumsSectionRef} className="px-6 pb-6 mt-8">
+              <h2 className="text-xl font-bold mb-4">Albums</h2>
+              {albums.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {albums.map((album) => (
+                    <MediaCard
+                      key={album.id}
+                      id={album.id}
+                      name={album.name}
+                      images={album.images || []}
+                      uri={album.uri}
+                      onClick={setSelectedAlbumId}
+                      onPlay={handlePlayAlbum}
+                      isPlaying={
+                        isPlaying && album.id === currentlyPlayingAlbumId
+                      }
+                      type="album"
+                      additionalInfo={
+                        <>
+                          {album.release_date?.substring(0, 4)} •{" "}
+                          {album.name.toLowerCase().includes("single")
+                            ? "Single"
+                            : "Album"}
+                        </>
+                      }
+                    />
+                  ))}
                 </div>
-              </div>
-              <div className="truncate font-medium">{album.name}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {album.release_date?.substring(0, 4)} •{" "}
-                {album.name.toLowerCase().includes("single")
-                  ? "Single"
-                  : "Album"}
-              </div>
+              ) : (
+                <Card className="p-6 text-center">
+                  <div className="flex justify-center mb-4">
+                    <Music className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground">No albums found</p>
+                </Card>
+              )}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
