@@ -6,6 +6,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import { Layout } from "./components/layout/Layout";
 import { UserPlaylists } from "./components/UserPlaylists";
 import { NewReleases } from "./components/NewReleases";
+import { LikedSongs } from "./components/LikedSongs";
 import { listen } from "@tauri-apps/api/event";
 import { Header } from "./components/layout/Header";
 
@@ -25,6 +26,8 @@ const MainContent = memo(({ currentView }: { currentView: string }) => {
       return <UserPlaylists />;
     case "new-releases":
       return <NewReleases />;
+    case "liked":
+      return <LikedSongs />;
     default:
       return <div className="p-4">Content for {currentView} will go here</div>;
   }

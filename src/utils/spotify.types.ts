@@ -85,6 +85,11 @@ export interface SpotifyPlaybackState {
   } | null;
 }
 
+export interface SpotifySavedTrack {
+  added_at: string;
+  track: SpotifyTrackItem;
+}
+
 export interface SpotifyPlaylistItem {
   id: string;
   name: string;

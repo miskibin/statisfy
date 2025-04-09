@@ -27,7 +27,7 @@ export function NewReleases() {
       const result = await getNewReleases(limit, offsetValue);
       if (result && result.items) {
         if (append) {
-          setAlbums(prev => [...prev, ...result.items]);
+          setAlbums((prev) => [...prev, ...result.items]);
         } else {
           setAlbums(result.items);
         }

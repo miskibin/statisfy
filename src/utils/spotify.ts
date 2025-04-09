@@ -10,6 +10,7 @@ import {
   SpotifyAlbum,
   SpotifyPlaylistDetails,
   SpotifyAlbumDetails,
+  SpotifySavedTrack,
 } from "./spotify.types";
 
 // Constants
@@ -30,6 +31,7 @@ const SCOPES = [
   "user-top-read",
   "playlist-read-private",
   "playlist-read-collaborative",
+  "user-library-read",
   "streaming",
 ];
 
@@ -438,4 +440,19 @@ export const getNewReleases = async (
   );
 
   return data && data.albums ? data.albums : null;
+};
+
+// Function to get user's saved tracks (liked songs)
+export const getLikedSongs = async (
+  limit = 50,
+  offset = 0
+): Promise<SpotifyPagingObject<SpotifySavedTrack> | null> => {
+  const cacheTime = 5 * 60 * 1000; // 5 minutes
+  const data = await spotifyApi.get<SpotifyPagingObject<SpotifySavedTrack>>(
+    `/me/tracks?limit=${limit}&offset=${offset}`,
+    undefined,
+    cacheTime
+  );
+
+  return data && data.items ? data : null;
 };

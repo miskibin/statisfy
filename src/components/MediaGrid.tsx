@@ -1,10 +1,5 @@
 import { Button } from "@/components/ui/button";
-import {
-  Play,
-  Pause,
-  ListMusic,
-  Disc,
-} from "lucide-react";
+import { Play, Pause, ListMusic, Disc } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useEffect, useRef, useState } from "react";
 
@@ -62,13 +57,16 @@ export function MediaGrid({
       observerRef.current.disconnect();
     }
 
-    observerRef.current = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasMore && !loadingMore) {
-        onLoadMore();
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore) {
+          onLoadMore();
+        }
+      },
+      {
+        rootMargin: "100px",
       }
-    }, {
-      rootMargin: '100px'
-    });
+    );
 
     if (loadMoreRef.current) {
       observerRef.current.observe(loadMoreRef.current);
@@ -206,7 +204,7 @@ export function MediaGrid({
           );
         })}
       </div>
-      
+
       {/* Element to observe for infinite scrolling */}
       {hasMore && (
         <div ref={loadMoreRef} className="flex justify-center py-8">
