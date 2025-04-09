@@ -16,6 +16,9 @@ import { spotifyApi } from "@/utils/apiClient";
 
 interface PlaylistDetailProps {
   playlistId: string;
+  onBack?: () => void;
+  isPlaying?: boolean;
+  onPlay?: (uri: string) => void;
 }
 
 export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {

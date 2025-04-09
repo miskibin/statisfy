@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { ListMusic, Disc } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useEffect, useRef } from "react";
 import { MediaCard } from "./MediaCard";
@@ -123,8 +122,6 @@ export function MediaGrid({
       </div>
     );
   }
-
-  const Icon = type === "playlist" ? ListMusic : Disc;
 
   return (
     <div className="p-4">

@@ -16,8 +16,7 @@ import {
   SpotifyTrackItem,
 } from "@/utils/spotify.types";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { PersonStanding, Music } from "lucide-react";
+import { Music } from "lucide-react";
 
 interface ArtistDetailProps {
   artistId: string;

@@ -55,7 +55,6 @@ function MediaDetailHeader({
   onPlay,
   onBack,
   isPlaying,
-  compact = false,
 }: MediaDetailHeaderProps) {
   return (
     <>
