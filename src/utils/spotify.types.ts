@@ -1,6 +1,4 @@
 // Types for Spotify API and SDK
-import axios from "axios";
-
 // Extend window interface for Spotify SDK
 declare global {
   interface Window {
@@ -99,6 +97,8 @@ export interface SpotifyPlaylistItem {
 }
 
 export interface SpotifyPlaylistDetails {
+  owner: any;
+  followers: any;
   id: string;
   name: string;
   description: string;

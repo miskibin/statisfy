@@ -1,11 +1,9 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
-import { CacheItem, SpotifyPlaybackState } from "./spotify.types";
+import { CacheItem } from "./spotify.types";
 
 // Spotify configuration
-const CLIENT_ID =
-  import.meta.env.VITE_CLIENT_ID || "9cb0388b445a454fb6d917333f4705f6";
-const CLIENT_SECRET =
-  import.meta.env.VITE_CLIENT_SECRET || "11927441af564be5b45888ba20aa3113";
+const CLIENT_ID = import.meta.env.VITE_CLIENT_ID;
+const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET;
 
 export class SpotifyApiClient {
   private static instance: SpotifyApiClient;

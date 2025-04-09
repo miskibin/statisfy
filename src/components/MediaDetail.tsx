@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Play, Clock, ArrowLeft, Pause, Music, Star } from "lucide-react";
+import { Play, Clock, ArrowLeft, Pause, Music } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface MediaDetailHeaderProps {

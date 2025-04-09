@@ -5,11 +5,8 @@ import {
   playPlaylist,
   getCurrentPlayback,
 } from "@/utils/spotify";
-import { MediaDetail, formatDuration } from "@/components/MediaDetail";
-import {
-  SpotifyPlaylistDetails,
-  SpotifyPlaybackState,
-} from "@/utils/spotify.types";
+import { MediaDetail } from "@/components/MediaDetail";
+import { SpotifyPlaylistDetails } from "@/utils/spotify.types";
 
 interface PlaylistDetailProps {
   playlistId: string;
@@ -121,6 +118,7 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
               isPlaying: playlistIsPlaying,
               primaryInfo: (
                 <>
+                  <h2 className="text-3xl font-bold mb-1">{playlist.name}</h2>
                   {playlist.description && (
                     <p
                       className="text-muted-foreground mb-2"
@@ -129,7 +127,7 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
                   )}
                   <p className="text-sm mb-1">{playlist.tracks.total} tracks</p>
                   {playlist.owner && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mb-4">
                       By {playlist.owner.display_name}
                     </p>
                   )}
@@ -138,7 +136,7 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
               secondaryInfo: (
                 <>
                   {playlist.followers && (
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className="text-xs text-muted-foreground">
                       {playlist.followers.total.toLocaleString()} followers
                     </p>
                   )}
