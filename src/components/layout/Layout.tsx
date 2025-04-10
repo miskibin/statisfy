@@ -29,7 +29,7 @@ export function Layout({ children, onLogout, navigate }: LayoutProps) {
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen w-full font-sans">
         <AppSidebar navigate={handleNavigate} />
-
+        <div className="texture" />
         <div className="flex-1 flex flex-col h-screen overflow-hidden">
           <Header onLogout={onLogout} onSearch={handleSearch} />
 
