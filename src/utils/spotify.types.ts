@@ -14,6 +14,11 @@ export interface SpotifyArtist {
   id: string;
   name: string;
   uri: string;
+  external_urls?: {
+    spotify: string;
+  };
+  href?: string;
+  type?: string;
 }
 
 export interface SpotifyImage {
@@ -22,17 +27,39 @@ export interface SpotifyImage {
   width: number | null;
 }
 
+export interface SpotifyAlbum {
+  id: string;
+  name: string;
+  uri: string;
+  images: SpotifyImage[];
+  album_type?: string;
+  artists: SpotifyArtist[];
+  release_date?: string;
+  release_date_precision?: string;
+  total_tracks?: number;
+  type?: string;
+  external_urls?: {
+    spotify: string;
+  };
+}
+
 export interface SpotifyTrackItem {
   id: string;
   name: string;
   uri: string;
   duration_ms: number;
   artists: SpotifyArtist[];
-  album: {
-    id: string;
-    name: string;
-    images: SpotifyImage[];
+  album: SpotifyAlbum;
+  preview_url?: string;
+  explicit?: boolean;
+  disc_number?: number;
+  track_number?: number;
+  is_playable?: boolean;
+  popularity?: number;
+  external_urls?: {
+    spotify: string;
   };
+  is_local?: boolean;
 }
 
 export interface SpotifyPlaylistTrack {
@@ -127,15 +154,6 @@ export interface SpotifyPlaylistsResponse {
   limit: number;
   offset: number;
   total: number;
-}
-
-export interface SpotifyAlbum {
-  id: string;
-  name: string;
-  artists: { id: string; name: string }[];
-  images: { url: string; height: number; width: number }[];
-  release_date: string;
-  uri: string;
 }
 
 export interface SpotifyAlbumDetails extends SpotifyAlbum {

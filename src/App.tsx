@@ -6,7 +6,6 @@ import { ThemeProvider } from "./components/theme-provider";
 import { Layout } from "./components/layout/Layout";
 import { UserPlaylists } from "./components/UserPlaylists";
 import { NewReleases } from "./components/NewReleases";
-import { LikedSongs } from "./components/LikedSongs";
 import { Artists } from "./components/Artists"; // Import Artists component
 import { ArtistDetail } from "./components/ArtistDetail"; // Import ArtistDetail component
 import { AlbumDetail } from "./components/AlbumDetail"; // Import AlbumDetail component
@@ -48,8 +47,6 @@ const MainContent = memo(
         return <UserPlaylists />;
       case "new-releases":
         return <NewReleases />;
-      case "liked":
-        return <LikedSongs />;
       case "artists":
         return <Artists />;
       default:

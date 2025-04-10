@@ -235,6 +235,18 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
         album?.tracks.items.map((track) => {
           const isCurrentTrack = currentlyPlaying?.uri === track.uri;
 
+          // Get the appropriate size of album image for track thumbnails
+          const albumImages = album.images || [];
+          const imageUrl =
+            albumImages.length > 0
+              ? albumImages.find((img) => img.width === 64 || img.height === 64)
+                  ?.url ||
+                albumImages.find(
+                  (img) => img.width === 300 || img.height === 300
+                )?.url ||
+                albumImages[0].url
+              : undefined;
+
           return {
             id: track.id,
             index: track.track_number,
@@ -244,8 +256,9 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
               id: artist.id,
               name: artist.name,
             })),
-            albumId: album.id, // Include current album data for consistency
+            albumId: album.id,
             albumName: album.name,
+            imageUrl: imageUrl, // Add album image URL
             duration: track.duration_ms,
             uri: track.uri,
             onPlay: handlePlayTrack,

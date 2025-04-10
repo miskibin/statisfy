@@ -40,13 +40,32 @@ export function UserPlaylists() {
     try {
       const result = await getUserPlaylists(limit, offsetValue);
       if (result && result.items) {
+        // Create playlists array, adding Liked Songs at the beginning in first batch only
+        const updatedPlaylists = !append
+          ? [
+              // Add Liked Songs virtual playlist
+              {
+                id: "liked-songs",
+                name: "Liked Songs",
+                images: [
+                  {
+                    url: "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                  },
+                ],
+                uri: "spotify:playlist:liked-songs",
+                tracks: { total: 0 },
+              },
+              ...result.items,
+            ]
+          : result.items;
+
         if (append) {
-          setPlaylists((prev) => [...prev, ...result.items]);
+          setPlaylists((prev) => [...prev, ...updatedPlaylists]);
         } else {
-          setPlaylists(result.items);
+          setPlaylists(updatedPlaylists);
         }
-        setTotal(result.total);
-        setOffset(offsetValue);
+        setTotal(result.total + 1); // +1 for the liked songs playlist
+        setOffset(offsetValue + updatedPlaylists.length);
       } else {
         if (!append) {
           setError("Could not load your playlists");
@@ -85,8 +104,14 @@ export function UserPlaylists() {
   };
 
   const handleLoadMore = () => {
-    if (offset + limit < total && playlists.length < maxItems) {
-      fetchPlaylists(offset + limit, true);
+    console.log("Loading more playlists...", {
+      offset,
+      total,
+      current: playlists.length,
+    });
+    if (offset < total && playlists.length < maxItems) {
+      // Pass the actual offset without liked songs for API call since it's added manually
+      fetchPlaylists(offset - 1, true);
     }
   };
 
@@ -106,7 +131,7 @@ export function UserPlaylists() {
     );
   }
 
-  const hasMore = offset + limit < total && playlists.length < maxItems;
+  const hasMore = offset < total && playlists.length < maxItems;
 
   return (
     <MediaGrid

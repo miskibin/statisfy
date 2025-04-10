@@ -33,11 +33,6 @@ const items = [
     icon: Home,
   },
   {
-    title: "Search",
-    url: "/search",
-    icon: Search,
-  },
-  {
     title: "Your Library",
     url: "/library",
     icon: Library,
@@ -52,11 +47,7 @@ const items = [
     url: "/playlists",
     icon: ListMusic,
   },
-  {
-    title: "Liked Songs",
-    url: "/liked",
-    icon: Heart,
-  },
+
   {
     title: "Recently Played",
     url: "/recent",
@@ -67,11 +58,11 @@ const items = [
     url: "/new-releases",
     icon: Disc,
   },
-  {
-    title: "Statistics",
-    url: "/stats",
-    icon: LineChart,
-  },
+  // {
+  //   title: "Statistics",
+  //   url: "/stats",
+  //   icon: LineChart,
+  // },
 ];
 
 export function AppSidebar({ navigate }: AppSidebarProps) {

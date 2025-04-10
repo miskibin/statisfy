@@ -354,13 +354,18 @@ export const getUserPlaylists = async (
   offset = 0
 ): Promise<SpotifyPlaylistsResponse | null> => {
   const cacheTime = 5 * 60 * 1000; // 5 minutes
-  const data = await spotifyApi.get<SpotifyPlaylistsResponse>(
-    `/me/playlists?limit=${limit}&offset=${offset}`,
-    undefined,
-    cacheTime
-  );
+  try {
+    const data = await spotifyApi.get<SpotifyPlaylistsResponse>(
+      `/me/playlists?limit=${limit}&offset=${offset}`,
+      undefined,
+      cacheTime
+    );
 
-  return data && data.items ? data : null;
+    return data || null;
+  } catch (error) {
+    console.error("Error fetching user playlists:", error);
+    return null;
+  }
 };
 
 export const getPlaylistDetails = async (
@@ -368,8 +373,9 @@ export const getPlaylistDetails = async (
 ): Promise<SpotifyPlaylistDetails | null> => {
   try {
     const cacheTime = 5 * 60 * 1000; // 5 minutes cache
+    // Include fields parameter to ensure we get all needed data including album images
     const playlist = await spotifyApi.get<SpotifyPlaylistDetails>(
-      `/playlists/${playlistId}`,
+      `/playlists/${playlistId}?fields=id,name,description,images,uri,owner.display_name,followers.total,tracks.items(added_at,track(id,name,uri,duration_ms,artists,album(id,name,images))),tracks.next,tracks.total`,
       undefined,
       cacheTime
     );
@@ -450,13 +456,18 @@ export const getLikedSongs = async (
   offset = 0
 ): Promise<SpotifyPagingObject<SpotifySavedTrack> | null> => {
   const cacheTime = 5 * 60 * 1000; // 5 minutes
-  const data = await spotifyApi.get<SpotifyPagingObject<SpotifySavedTrack>>(
-    `/me/tracks?limit=${limit}&offset=${offset}`,
-    undefined,
-    cacheTime
-  );
+  try {
+    const data = await spotifyApi.get<SpotifyPagingObject<SpotifySavedTrack>>(
+      `/me/tracks?limit=${limit}&offset=${offset}`,
+      undefined,
+      cacheTime
+    );
 
-  return data && data.items ? data : null;
+    return data || null;
+  } catch (error) {
+    console.error("Error fetching liked songs:", error);
+    return null;
+  }
 };
 
 // Artist-related API functions

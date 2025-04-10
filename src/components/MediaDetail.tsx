@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Play, Clock, ArrowLeft, Pause, Music } from "lucide-react";
+import { Play, Clock, ArrowLeft, Pause, Music, Image } from "lucide-react";
 
 interface MediaDetailHeaderProps {
   images: { url: string }[];
@@ -22,6 +22,7 @@ interface MediaDetailTrackProps {
   artistsData?: Array<{ id: string; name: string }>;
   duration: number;
   uri: string;
+  imageUrl?: string; // Album art URL
   onPlay: (uri: string) => Promise<void>;
   isPlaying?: boolean;
   isCurrentTrack?: boolean;
@@ -115,8 +116,10 @@ function MediaDetailTrack({
   artistsData,
   duration,
   uri,
+  imageUrl,
   onPlay,
   isCurrentTrack,
+  isPlaying,
   onArtistClick,
   albumId,
   albumName,
@@ -129,20 +132,34 @@ function MediaDetailTrack({
       }`}
       onClick={() => onPlay(uri)}
     >
-      <div className="w-8 flex items-center text-muted-foreground text-sm">
-        {isCurrentTrack ? (
-          <div className="relative w-4 h-4 flex items-center justify-center">
-            <Pause className="h-4 w-4 absolute" />
-          </div>
-        ) : (
-          <>
-            <span className="group-hover:hidden">{index}</span>
-            <Play className="h-4 w-4 hidden group-hover:block" />
-          </>
-        )}
+      <div className="w-10 h-10 flex items-center justify-center relative">
+        {/* Album thumbnail with play/pause overlay */}
+        <div className="w-10 h-10 overflow-hidden rounded-sm">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full bg-muted/30 flex items-center justify-center">
+              <Image className="h-4 w-4 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+
+        {/* Play/Pause overlay */}
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          {isCurrentTrack && isPlaying ? (
+            <Pause className="h-5 w-5 text-white" />
+          ) : (
+            <Play className="h-5 w-5 text-white" />
+          )}
+        </div>
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex flex-col justify-center">
         <div
           className={`truncate ${
             isCurrentTrack ? "font-semibold" : "font-medium"
@@ -152,8 +169,7 @@ function MediaDetailTrack({
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {artistsData && onArtistClick
-            ? // Render clickable artist names
-              artistsData.map((artist, i) => (
+            ? artistsData.map((artist, i) => (
                 <span key={artist.id}>
                   {i > 0 && ", "}
                   <span
@@ -167,8 +183,7 @@ function MediaDetailTrack({
                   </span>
                 </span>
               ))
-            : // Default non-clickable artist string
-              artists}
+            : artists}
         </div>
       </div>
 
@@ -292,7 +307,7 @@ export function MediaDetail({
       {/* Track listing */}
       <div className="px-6 pb-6 mt-12">
         <div className="grid grid-cols-[auto_2fr_1.5fr_auto] gap-4 mb-1 px-4 text-xs text-muted-foreground font-medium border-b border-muted/20 pb-2">
-          <div className="w-8">#</div>
+          <div className="w-10">#</div>
           <div>TITLE</div>
           <div>ALBUM</div>
           <div className="flex items-center gap-2 justify-self-end">

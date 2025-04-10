@@ -141,27 +141,41 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
 
   // Format the track data for MediaDetail component with artist data
   const mediaDetailTracks = useMemo(() => {
-    return topTracks.map((track, index) => ({
-      id: track.id,
-      index: index + 1,
-      name: track.name,
-      artists: track.artists.map((artist) => artist.name).join(", "),
-      artistsData: track.artists.map((artist) => ({
-        id: artist.id,
-        name: artist.name,
-      })),
-      albumId: track.album.id,
-      albumName: track.album.name,
-      duration: track.duration_ms,
-      uri: track.uri,
-      onPlay: handlePlayTrack,
-      isCurrentTrack: track.id === currentlyPlayingTrackId,
-      isPlaying: isPlaying && track.id === currentlyPlayingTrackId,
-      onArtistClick: handleArtistClick,
-      onAlbumClick: (albumId: string) => {
-        navigate(`/albums/${albumId}`);
-      },
-    }));
+    return topTracks.map((track, index) => {
+      // Get the appropriate album image for the track
+      const albumImages = track.album?.images || [];
+      const imageUrl =
+        albumImages.length > 0
+          ? albumImages.find((img) => img.width === 64 || img.height === 64)
+              ?.url ||
+            albumImages.find((img) => img.width === 300 || img.height === 300)
+              ?.url ||
+            albumImages[0].url
+          : undefined;
+
+      return {
+        id: track.id,
+        index: index + 1,
+        name: track.name,
+        artists: track.artists.map((artist) => artist.name).join(", "),
+        artistsData: track.artists.map((artist) => ({
+          id: artist.id,
+          name: artist.name,
+        })),
+        albumId: track.album.id,
+        albumName: track.album.name,
+        imageUrl: imageUrl, // Add album image URL
+        duration: track.duration_ms,
+        uri: track.uri,
+        onPlay: handlePlayTrack,
+        isCurrentTrack: track.id === currentlyPlayingTrackId,
+        isPlaying: isPlaying && track.id === currentlyPlayingTrackId,
+        onArtistClick: handleArtistClick,
+        onAlbumClick: (albumId: string) => {
+          navigate(`/albums/${albumId}`);
+        },
+      };
+    });
   }, [
     topTracks,
     currentlyPlayingTrackId,
