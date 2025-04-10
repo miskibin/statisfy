@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, useCallback } from "react";
 import {
-  LogOut,
+  // LogOut,
   Moon,
   Sun,
   Minus,

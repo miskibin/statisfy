@@ -15,7 +15,6 @@ import {
   SpotifyArtistDetails,
   SpotifyTopTracksResponse,
   SpotifyQueueResponse,
-  SpotifyTrackItem,
   SpotifySearchResponse,
 } from "./spotify.types";
 import {
@@ -561,7 +560,6 @@ export const playPlaylist = async (playlistUri: string): Promise<boolean> => {
     const success = await loadTracksIntoQueue(
       "playlist",
       playlistId,
-      playlistUri
     );
     if (success) return true;
 
@@ -604,7 +602,7 @@ export const playAlbum = async (albumUri: string): Promise<boolean> => {
     if (!albumId) return false;
 
     // Load all tracks from this album into our queue
-    const success = await loadTracksIntoQueue("album", albumId, albumUri);
+    const success = await loadTracksIntoQueue("album", albumId);
     if (success) return true;
 
     // Fallback to direct Spotify playback if our queue loading fails

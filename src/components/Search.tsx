@@ -137,7 +137,7 @@ const Search = ({ query }: SearchProps) => {
   };
 
   const handleBackToResults = () => {
-    navigate(-1);
+    navigate("-1");
   };
 
   // Show detail views when an item is selected

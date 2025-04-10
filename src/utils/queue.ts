@@ -254,23 +254,32 @@ export const playTrackWithContext = async (uri: string) => {
 // New function to load all tracks from a playlist or album into the queue
 export const loadTracksIntoQueue = async (
   sourceType: "album" | "playlist",
-  sourceId: string,
-  sourceUri: string
+  sourceId: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  //   sourceUri: string // Kept for API compatibility but not used directly
 ): Promise<boolean> => {
   try {
     let trackUris: string[] = [];
 
     if (sourceType === "playlist") {
-      const playlistData = await spotifyApi.get(`/playlists/${sourceId}`);
+      const playlistData = await spotifyApi.get<{
+        tracks?: {
+          items?: Array<{ track?: { uri: string } }>;
+        };
+      }>(`/playlists/${sourceId}`);
 
       if (playlistData && playlistData.tracks && playlistData.tracks.items) {
         // Extract track URIs from playlist
         trackUris = playlistData.tracks.items
-          .filter((item) => item.track) // Skip null tracks
-          .map((item) => item.track.uri);
+          .filter((item) => item && item.track)
+          .map((item) => item.track!.uri); // Use non-null assertion since we filtered nulls
       }
     } else if (sourceType === "album") {
-      const albumData = await spotifyApi.get(`/albums/${sourceId}`);
+      const albumData = await spotifyApi.get<{
+        tracks?: {
+          items?: Array<{ uri: string }>;
+        };
+      }>(`/albums/${sourceId}`);
 
       if (albumData && albumData.tracks && albumData.tracks.items) {
         // Extract track URIs from album
