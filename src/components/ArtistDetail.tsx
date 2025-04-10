@@ -19,9 +19,10 @@ import {
 
 interface ArtistDetailProps {
   artistId: string;
+  onBack?: () => void; // Add optional onBack prop
 }
 
-export function ArtistDetail({ artistId }: ArtistDetailProps) {
+export function ArtistDetail({ artistId, onBack }: ArtistDetailProps) {
   const [artistDetails, setArtistDetails] =
     useState<SpotifyArtistDetails | null>(null);
   const [topTracks, setTopTracks] = useState<SpotifyTrackItem[]>([]);
@@ -38,6 +39,15 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const albumsSectionRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Handle back navigation
+  const handleBackNavigation = useCallback(() => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate("/artists");
+    }
+  }, [onBack, navigate]);
 
   // Load artist data
   useEffect(() => {
@@ -227,7 +237,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
         </div>
       ),
       onPlay: handlePlayArtist,
-      onBack: () => navigate("/artists"),
+      onBack: handleBackNavigation,
       isPlaying: isPlaying && !currentlyPlayingAlbumId,
     };
   }, [
@@ -235,7 +245,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     isPlaying,
     currentlyPlayingAlbumId,
     handlePlayArtist,
-    navigate,
+    handleBackNavigation,
   ]);
 
   // If an album is selected, show the album detail view
@@ -257,7 +267,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
           error={null}
           headerProps={undefined}
           tracks={[]}
-          onBack={() => navigate("/artists")}
+          onBack={handleBackNavigation}
         />
       ) : error || !artistDetails ? (
         <MediaDetail
@@ -266,7 +276,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
           error={error || "Could not load artist details"}
           headerProps={undefined}
           tracks={[]}
-          onBack={() => navigate("/artists")}
+          onBack={handleBackNavigation}
         />
       ) : (
         <div className="h-full flex flex-col overflow-hidden">
@@ -278,7 +288,7 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
               error={null}
               headerProps={headerProps}
               tracks={mediaDetailTracks}
-              onBack={() => navigate("/artists")}
+              onBack={handleBackNavigation}
               noScrollContainer={true}
             />
 

@@ -6,6 +6,7 @@ declare global {
       Player: any;
     };
     onSpotifyWebPlaybackSDKReady: () => void;
+    appWindow: any; // Tauri window
   }
 }
 
@@ -269,4 +270,12 @@ export interface WebPlaybackState {
 export interface CacheItem {
   data: any;
   expiry: number;
+}
+
+// Search response types
+export interface SpotifySearchResponse {
+  albums?: SpotifyPagingObject<SpotifyAlbum>;
+  artists?: SpotifyPagingObject<SpotifyArtistDetails>;
+  tracks?: SpotifyPagingObject<SpotifyTrackItem>;
+  playlists?: SpotifyPagingObject<SpotifyPlaylistItem>;
 }

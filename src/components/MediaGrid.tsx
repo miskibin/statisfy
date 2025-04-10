@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useEffect, useRef } from "react";
-import { MediaCard } from "./MediaCard";
 import { PersonStanding } from "lucide-react";
+import { MediaCard } from "./MediaCard";
 
 interface MediaItem {
   id: string;
@@ -22,35 +22,37 @@ interface MediaItem {
 }
 
 interface MediaGridProps {
-  title: string;
-  items: MediaItem[];
-  loading: boolean;
+  title?: string; // Make title optional
+  items?: MediaItem[]; // Make items optional
+  loading?: boolean; // Make loading optional
   loadingMore?: boolean;
-  error: string | null;
-  onRetry: () => void;
+  error?: string | null; // Make error optional
+  onRetry?: () => void; // Make onRetry optional
   onPlay?: (uri: string) => void; // Optional for albums without playback
   onSelect?: (id: string) => void; // New prop for navigation to detail view
   onLoadMore?: () => void; // New prop for infinite scroll
   hasMore?: boolean; // Whether there are more items to load
-  type: "playlist" | "album" | "artist"; // Added artist type
+  type?: "playlist" | "album" | "artist"; // Added artist type
   currentlyPlayingId?: string | null; // New prop to track currently playing item
   useCircularImages?: boolean; // Whether to use circular images
+  children?: React.ReactNode; // Add children prop
 }
 
 export function MediaGrid({
-  title,
-  items,
-  loading,
+  title = "", // Default empty title
+  items = [], // Default empty array
+  loading = false, // Default to not loading
   loadingMore = false,
-  error,
-  onRetry,
+  error = null, // Default no error
+  onRetry = () => {}, // Default empty function
   onPlay,
   onSelect,
   onLoadMore,
   hasMore = false,
-  type,
+  type = "playlist", // Default to playlist
   currentlyPlayingId,
   useCircularImages = false,
+  children, // Accept children prop
 }: MediaGridProps) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -86,7 +88,7 @@ export function MediaGrid({
   }, [loading, loadingMore, hasMore, onLoadMore]);
 
   // Display for empty or loading state
-  if (loading && items.length === 0) {
+  if (loading && items.length === 0 && !children) {
     return (
       <div className="p-6">
         <h1 className="text-xl font-medium mb-6">{title}</h1>
@@ -107,7 +109,7 @@ export function MediaGrid({
     );
   }
 
-  if (error && items.length === 0) {
+  if (error && items.length === 0 && !children) {
     return (
       <div className="p-4">
         <Card className="p-4 text-center">
@@ -120,7 +122,7 @@ export function MediaGrid({
     );
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && !children) {
     return (
       <div className="p-4">
         <Card className="p-4 text-center">
@@ -158,11 +160,22 @@ export function MediaGrid({
     return null;
   };
 
+  // If children are provided, render them directly
+  if (children) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-medium">{title}</h1>
-      </div>
+      {title && (
+        <div className="mb-6">
+          <h1 className="text-xl font-medium">{title}</h1>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
         {items.map((item) => {
@@ -179,7 +192,6 @@ export function MediaGrid({
                 onClick={() => onSelect && onSelect(item.id)}
                 onPlay={onPlay}
                 isPlaying={isPlaying}
-                // type={type}
                 secondaryInfo={getSecondaryInfo(item)}
                 useCircularImage={useCircularImages}
                 placeholderIcon={getPlaceholderIcon()}

@@ -16,13 +16,28 @@ import {
   SpotifyTopTracksResponse,
   SpotifyQueueResponse,
   SpotifyTrackItem,
+  SpotifySearchResponse,
 } from "./spotify.types";
+import {
+  setPlaybackContext,
+  getPlaybackContext,
+  clearPlaybackContext,
+  getInternalQueue,
+  getCurrentQueueIndex,
+  clearInternalQueue,
+  addToInternalQueue,
+  setInternalQueue,
+  removeFromInternalQueue,
+  playNextInQueue,
+  playPreviousInQueue,
+  getTracksByUris,
+  playTrackWithContext,
+  loadTracksIntoQueue,
+} from "./queue";
 
 // Constants
-const CLIENT_ID =
-  import.meta.env.VITE_CLIENT_ID || "9cb0388b445a454fb6d917333f4705f6";
-const CLIENT_SECRET =
-  import.meta.env.VITE_CLIENT_SECRET || "11927441af564be5b45888ba20aa3113";
+const CLIENT_ID = import.meta.env.VITE_CLIENT_ID;
+const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET;
 const isDev = import.meta.env.DEV || window.location.hostname === "localhost";
 const REDIRECT_URI = isDev
   ? "http://localhost:1420/callback"
@@ -88,6 +103,8 @@ export const addTrackToQueue = async (trackUri: string): Promise<boolean> => {
     const result = await spotifyApi.post("/me/player/queue", null, {
       params: { uri: trackUri, device_id: deviceId },
     });
+    // Also add to our internal queue for tracking
+    addToInternalQueue(trackUri);
     return result !== null;
   } catch (error) {
     console.error("Error adding track to queue:", error);
@@ -182,7 +199,7 @@ export const initializePlayer = async (
     // Wait for device ID with timeout
     const deviceIdResult = await Promise.race([
       deviceIdPromise,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+      new Promise<null>((resolve) => setTimeout(resolve, 10000)),
     ]);
 
     if (deviceIdResult) {
@@ -432,6 +449,11 @@ export const resumePlayback = async (): Promise<boolean> => {
 };
 
 export const skipToNext = async (): Promise<boolean> => {
+  // First try using our internal queue for better control
+  const nextResult = await playNextInQueue();
+  if (nextResult) return true;
+
+  // Fall back to the Spotify player if our queue doesn't have next track
   if (!player) return false;
   try {
     await player.nextTrack();
@@ -442,6 +464,11 @@ export const skipToNext = async (): Promise<boolean> => {
 };
 
 export const skipToPrevious = async (): Promise<boolean> => {
+  // First try using our internal queue for better control and circular navigation
+  const prevResult = await playPreviousInQueue();
+  if (prevResult) return true;
+
+  // Fall back to the Spotify player if our queue doesn't have previous track
   if (!player) return false;
   try {
     await player.previousTrack();
@@ -518,10 +545,27 @@ export const getAlbumDetails = async (albumId: string) =>
     5 * 60 * 1000
   );
 
-export const playPlaylist = async (playlistUri: string) => {
-  if (!deviceId) return false;
+// Updated to use our enhanced queue system
+export const playPlaylist = async (playlistUri: string): Promise<boolean> => {
+  if (!deviceId) {
+    const initialized = await ensureActiveDevice();
+    if (!initialized) return false;
+  }
 
   try {
+    // Extract playlist ID from URI
+    const playlistId = playlistUri.split(":").pop();
+    if (!playlistId) return false;
+
+    // Load all tracks from this playlist into our queue
+    const success = await loadTracksIntoQueue(
+      "playlist",
+      playlistId,
+      playlistUri
+    );
+    if (success) return true;
+
+    // Fallback to direct Spotify playback if our queue loading fails
     const result = await spotifyApi.put("/me/player/play", {
       context_uri: playlistUri,
       device_id: deviceId,
@@ -547,7 +591,47 @@ export const playPlaylist = async (playlistUri: string) => {
   }
 };
 
-export const playAlbum = playPlaylist; // Same logic as playing a playlist
+// Updated to use our enhanced queue system
+export const playAlbum = async (albumUri: string): Promise<boolean> => {
+  if (!deviceId) {
+    const initialized = await ensureActiveDevice();
+    if (!initialized) return false;
+  }
+
+  try {
+    // Extract album ID from URI
+    const albumId = albumUri.split(":").pop();
+    if (!albumId) return false;
+
+    // Load all tracks from this album into our queue
+    const success = await loadTracksIntoQueue("album", albumId, albumUri);
+    if (success) return true;
+
+    // Fallback to direct Spotify playback if our queue loading fails
+    const result = await spotifyApi.put("/me/player/play", {
+      context_uri: albumUri,
+      device_id: deviceId,
+    });
+    return result !== null;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      const activated = await ensureActiveDevice();
+      if (activated) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        try {
+          const retry = await spotifyApi.put("/me/player/play", {
+            context_uri: albumUri,
+            device_id: deviceId,
+          });
+          return retry !== null;
+        } catch {
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+};
 
 export const getNewReleases = async (limit = 20, offset = 0) => {
   const data = await spotifyApi.get<SpotifyNewReleasesResponse>(
@@ -596,227 +680,46 @@ export const getQueue = async () =>
 export const getCurrentPlayback = async () =>
   spotifyApi.get<SpotifyPlaybackState>("/me/player");
 
-// Playback context tracking system to queue subsequent tracks
-interface PlaybackContext {
-  sourceType: "album" | "playlist" | "artist" | "search" | "none";
-  sourceId: string;
-  trackUris: string[];
-  currentIndex: number;
-}
-
-// Internal queue management system
-interface InternalQueueSystem {
-  tracks: string[]; // URIs of tracks in our queue
-  currentIndex: number; // Index of currently playing track in our internal queue
-  isPlaying: boolean; // Whether playback is currently active
-  autoPlay: boolean; // Whether to automatically play the next track
-  maxQueueSize: number; // Maximum number of tracks to keep in the queue
-}
-
-// Initialize our internal queue
-let internalQueue: InternalQueueSystem = {
-  tracks: [],
-  currentIndex: -1,
-  isPlaying: false,
-  autoPlay: true,
-  maxQueueSize: 10,
-};
-
-// Current playback context (for adding tracks from playlists/albums/artists)
-let currentPlaybackContext: PlaybackContext = {
-  sourceType: "none",
-  sourceId: "",
-  trackUris: [],
-  currentIndex: -1,
-};
-
-export const setPlaybackContext = (
-  sourceType: "album" | "playlist" | "artist" | "search" | "none",
-  sourceId: string,
-  trackUris: string[],
-  currentTrackUri: string
-) => {
-  const currentIndex = trackUris.indexOf(currentTrackUri);
-  if (currentIndex === -1 && trackUris.length > 0) {
-    // If the track isn't found in the URIs, default to the first track
-    currentPlaybackContext = {
-      sourceType,
-      sourceId,
-      trackUris,
-      currentIndex: 0,
-    };
-  } else {
-    currentPlaybackContext = { sourceType, sourceId, trackUris, currentIndex };
-  }
-};
-
-export const getPlaybackContext = (): PlaybackContext => {
-  return { ...currentPlaybackContext };
-};
-
-export const clearPlaybackContext = () => {
-  currentPlaybackContext = {
-    sourceType: "none",
-    sourceId: "",
-    trackUris: [],
-    currentIndex: -1,
-  };
-
-  // Also clear internal queue
-  clearInternalQueue();
-};
-
-// Internal Queue Management
-export const getInternalQueue = (): string[] => {
-  return [...internalQueue.tracks];
-};
-
-export const getCurrentQueueIndex = (): number => {
-  return internalQueue.currentIndex;
-};
-
-export const clearInternalQueue = () => {
-  internalQueue = {
-    ...internalQueue,
-    tracks: [],
-    currentIndex: -1,
-  };
-};
-
-export const addToInternalQueue = (trackUri: string) => {
-  // Don't add if already in queue
-  if (internalQueue.tracks.includes(trackUri)) return;
-
-  // Add to queue and trim if exceeds maxQueueSize
-  internalQueue.tracks.push(trackUri);
-  if (internalQueue.tracks.length > internalQueue.maxQueueSize) {
-    // Remove oldest entries (those before current playing track)
-    const currentIndex = internalQueue.currentIndex;
-    if (currentIndex > 0) {
-      internalQueue.tracks = internalQueue.tracks.slice(currentIndex);
-      internalQueue.currentIndex = 0;
-    } else {
-      // If we're at the beginning, remove from the end
-      internalQueue.tracks = internalQueue.tracks.slice(
-        0,
-        internalQueue.maxQueueSize
-      );
-    }
-  }
-};
-
-export const setInternalQueue = (tracks: string[], startIndex = 0) => {
-  internalQueue.tracks = tracks.slice(0, internalQueue.maxQueueSize);
-  internalQueue.currentIndex = Math.min(startIndex, tracks.length - 1);
-};
-
-export const removeFromInternalQueue = (index: number): boolean => {
-  // Make sure the index is valid
-  if (index < 0 || index >= internalQueue.tracks.length) {
-    return false;
-  }
-
-  // If removing the currently playing track, update state accordingly
-  if (index === internalQueue.currentIndex) {
-    // If we're removing the current track, we'll need to play the next one
-    if (index < internalQueue.tracks.length - 1) {
-      // There's a next track to play
-      // We keep the index the same since removing the current track
-      // will make the next track shift into this position
-    } else if (internalQueue.tracks.length > 1) {
-      // We're removing the last track and there are still other tracks
-      internalQueue.currentIndex = index - 1;
-    } else {
-      // We're removing the only track
-      internalQueue.currentIndex = -1;
-    }
-  } else if (index < internalQueue.currentIndex) {
-    // If removing a track before the current one, adjust the current index
-    internalQueue.currentIndex--;
-  }
-
-  // Remove the track
-  internalQueue.tracks.splice(index, 1);
-
-  return true;
-};
-
-export const playNextInQueue = async (): Promise<boolean> => {
-  if (internalQueue.currentIndex < internalQueue.tracks.length - 1) {
-    internalQueue.currentIndex++;
-    const nextTrack = internalQueue.tracks[internalQueue.currentIndex];
-    return await playTrack(nextTrack);
-  }
-  return false;
-};
-
-export const playPreviousInQueue = async (): Promise<boolean> => {
-  if (internalQueue.currentIndex > 0) {
-    internalQueue.currentIndex--;
-    const prevTrack = internalQueue.tracks[internalQueue.currentIndex];
-    return await playTrack(prevTrack);
-  }
-  return false;
-};
-
-// Get track details by URI
-export const getTracksByUris = async (
-  uris: string[]
-): Promise<SpotifyTrackItem[]> => {
-  if (!uris.length) return [];
-
-  // Extract track IDs from URIs
-  const ids = uris
-    .filter((uri) => uri.startsWith("spotify:track:"))
-    .map((uri) => uri.split(":")[2]);
-
-  if (!ids.length) return [];
+// Search functionality
+export const searchSpotify = async (
+  query: string,
+  types: Array<"album" | "artist" | "playlist" | "track"> = [
+    "album",
+    "artist",
+    "track",
+  ],
+  limit = 10
+): Promise<SpotifySearchResponse | null> => {
+  if (!query.trim()) return null;
 
   try {
-    // Spotify API has a limit of 50 IDs per request
-    const results: SpotifyTrackItem[] = [];
-    for (let i = 0; i < ids.length; i += 50) {
-      const batch = ids.slice(i, i + 50);
-      const tracksData = await spotifyApi.get<{ tracks: SpotifyTrackItem[] }>(
-        `/tracks?ids=${batch.join(",")}`,
-        undefined,
-        60 * 1000 // 1 minute cache
-      );
+    const typeParam = types.join(",");
+    const result = await spotifyApi.get<SpotifySearchResponse>(
+      `/search?q=${encodeURIComponent(query)}&type=${typeParam}&limit=${limit}`,
+      undefined,
+      30 * 1000 // 30 seconds cache
+    );
 
-      if (tracksData && tracksData.tracks) {
-        results.push(...tracksData.tracks);
-      }
-    }
-    return results;
+    return result;
   } catch (error) {
-    console.error("Error fetching tracks by URIs:", error);
-    return [];
+    console.error("Error searching Spotify:", error);
+    return null;
   }
 };
 
-// Enhanced play track with auto-queuing using our internal queue
-export const playTrackWithContext = async (uri: string) => {
-  // Find the current index in the context
-  const trackIndex = currentPlaybackContext.trackUris.indexOf(uri);
-  if (trackIndex === -1) {
-    // Just play this single track
-    internalQueue = {
-      ...internalQueue,
-      tracks: [uri],
-      currentIndex: 0,
-    };
-    return await playTrack(uri);
-  }
-
-  // Set up our internal queue with this track and subsequent tracks
-  const subsequentTracks = currentPlaybackContext.trackUris.slice(trackIndex);
-
-  // Update our internal queue
-  setInternalQueue(subsequentTracks, 0);
-
-  // Play the selected track (which is now first in our queue)
-  const success = await playTrack(uri);
-  internalQueue.isPlaying = success;
-
-  return success;
+// Re-export queue functions to maintain API compatibility
+export {
+  setPlaybackContext,
+  getPlaybackContext,
+  clearPlaybackContext,
+  getInternalQueue,
+  getCurrentQueueIndex,
+  clearInternalQueue,
+  addToInternalQueue,
+  setInternalQueue,
+  removeFromInternalQueue,
+  playNextInQueue,
+  playPreviousInQueue,
+  getTracksByUris,
+  playTrackWithContext,
 };
