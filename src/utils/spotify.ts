@@ -13,6 +13,7 @@ import {
   SpotifySavedTrack,
   SpotifyArtistDetails,
   SpotifyTopTracksResponse,
+  SpotifyQueueResponse,
 } from "./spotify.types";
 
 // Constants
@@ -521,6 +522,22 @@ export const getArtistAlbums = async (
     return albums;
   } catch (error) {
     console.error("Error fetching artist albums:", error);
+    return null;
+  }
+};
+
+// Queue-related functions
+export const getQueue = async (): Promise<SpotifyQueueResponse | null> => {
+  try {
+    const cacheTime = 10 * 1000; // Short cache time (10s) since queue changes often
+    const queue = await spotifyApi.get<SpotifyQueueResponse>(
+      "/me/player/queue",
+      undefined,
+      cacheTime
+    );
+    return queue;
+  } catch (error) {
+    console.error("Error fetching queue:", error);
     return null;
   }
 };

@@ -9,6 +9,7 @@ import { NewReleases } from "./components/NewReleases";
 import { Artists } from "./components/Artists"; // Import Artists component
 import { ArtistDetail } from "./components/ArtistDetail"; // Import ArtistDetail component
 import { AlbumDetail } from "./components/AlbumDetail"; // Import AlbumDetail component
+import { Queue } from "./components/Queue"; // Import Queue component
 import { listen } from "@tauri-apps/api/event";
 import { Header } from "./components/layout/Header";
 
@@ -49,6 +50,8 @@ const MainContent = memo(
         return <NewReleases />;
       case "artists":
         return <Artists />;
+      case "queue": // Add case for queue route
+        return <Queue />;
       default:
         return (
           <div className="p-4">Content for {currentView} will go here</div>

@@ -54,6 +54,11 @@ const items = [
     icon: History,
   },
   {
+    title: "Queue",
+    url: "/queue",
+    icon: History,
+  },
+  {
     title: "New Releases",
     url: "/new-releases",
     icon: Disc,

@@ -190,6 +190,12 @@ export interface SpotifyTopTracksResponse {
   tracks: SpotifyTrackItem[];
 }
 
+// Queue-related types
+export interface SpotifyQueueResponse {
+  currently_playing: SpotifyTrackItem;
+  queue: SpotifyTrackItem[];
+}
+
 // Web Playback SDK types
 export interface WebPlaybackError {
   message: string;
