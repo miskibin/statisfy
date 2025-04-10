@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useEffect, useRef } from "react";
 import { MediaCard } from "./MediaCard";
+import { PersonStanding } from "lucide-react";
 
 interface MediaItem {
   id: string;
@@ -15,6 +16,9 @@ interface MediaItem {
     name: string;
   }>;
   total_tracks?: number; // For albums
+  followers?: {
+    total: number;
+  }; // For artists
 }
 
 interface MediaGridProps {
@@ -28,8 +32,9 @@ interface MediaGridProps {
   onSelect?: (id: string) => void; // New prop for navigation to detail view
   onLoadMore?: () => void; // New prop for infinite scroll
   hasMore?: boolean; // Whether there are more items to load
-  type: "playlist" | "album"; // To differentiate between playlists and albums
+  type: "playlist" | "album" | "artist"; // Added artist type
   currentlyPlayingId?: string | null; // New prop to track currently playing item
+  useCircularImages?: boolean; // Whether to use circular images
 }
 
 export function MediaGrid({
@@ -45,6 +50,7 @@ export function MediaGrid({
   hasMore = false,
   type,
   currentlyPlayingId,
+  useCircularImages = false,
 }: MediaGridProps) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -79,14 +85,19 @@ export function MediaGrid({
     };
   }, [loading, loadingMore, hasMore, onLoadMore]);
 
+  // Display for empty or loading state
   if (loading && items.length === 0) {
     return (
-      <div className="p-4">
-        <h1 className="text-xl font-medium mb-4">{title}</h1>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="p-6">
+        <h1 className="text-xl font-medium mb-6">{title}</h1>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
           {[...Array(12)].map((_, i) => (
             <div key={i} className="animate-pulse">
-              <div className="aspect-square bg-muted/40 rounded-md mb-2"></div>
+              <div
+                className={`aspect-square bg-muted/40 ${
+                  useCircularImages ? "rounded-full" : "rounded-md"
+                } mb-2`}
+              ></div>
               <div className="h-2.5 bg-muted/40 rounded-md w-3/4 mb-1"></div>
               <div className="h-2 bg-muted/40 rounded-md w-1/2"></div>
             </div>
@@ -116,40 +127,64 @@ export function MediaGrid({
           <p className="text-muted-foreground text-sm">
             {type === "playlist"
               ? "You don't have any playlists yet"
-              : "No albums available"}
+              : type === "album"
+              ? "No albums available"
+              : "No artists found"}
           </p>
         </Card>
       </div>
     );
   }
 
+  // Get secondary info text based on media type
+  const getSecondaryInfo = (item: MediaItem) => {
+    switch (type) {
+      case "playlist":
+        return `${item.tracks?.total || 0} tracks`;
+      case "album":
+        return item.artists?.map((a) => a.name).join(", ");
+      case "artist":
+        return "Artist";
+      default:
+        return "";
+    }
+  };
+
+  // Get placeholder icon for missing images
+  const getPlaceholderIcon = () => {
+    if (type === "artist") {
+      return <PersonStanding className="h-12 w-12 text-muted-foreground" />;
+    }
+    return null;
+  };
+
   return (
-    <div className="p-4">
-      <div className="mb-4">
+    <div className="p-6">
+      <div className="mb-6">
         <h1 className="text-xl font-medium">{title}</h1>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
         {items.map((item) => {
           const isPlaying = currentlyPlayingId === item.id;
 
           return (
-            <MediaCard
-              key={item.id}
-              id={item.id}
-              name={item.name}
-              images={item.images}
-              uri={item.uri}
-              onClick={() => onSelect && onSelect(item.id)}
-              onPlay={onPlay}
-              isPlaying={isPlaying}
-              type={type}
-              secondaryInfo={
-                type === "playlist"
-                  ? `${item.tracks?.total || 0} tracks`
-                  : item.artists?.map((a) => a.name).join(", ")
-              }
-            />
+            <div key={item.id} className="max-w-[180px]">
+              <MediaCard
+                key={item.id}
+                id={item.id}
+                name={item.name}
+                images={item.images}
+                uri={item.uri}
+                onClick={() => onSelect && onSelect(item.id)}
+                onPlay={onPlay}
+                isPlaying={isPlaying}
+                // type={type}
+                secondaryInfo={getSecondaryInfo(item)}
+                useCircularImage={useCircularImages}
+                placeholderIcon={getPlaceholderIcon()}
+              />
+            </div>
           );
         })}
       </div>

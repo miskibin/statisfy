@@ -50,7 +50,7 @@ export const Header = memo(({ onLogout }: HeaderProps) => {
     >
       <div className="flex items-center gap-2">
         {onLogout && <SidebarTrigger className="h-10 w-10" />}
-        <div className="font-medium text-lg">Statisfy</div>
+        <div className="font-medium text-lg">SpotiLite</div>
       </div>
 
       <div className="flex items-center gap-2">

@@ -6,6 +6,8 @@ import {
   playPlaylist,
   playTrack,
   getLikedSongs,
+  playTrackWithContext,
+  setPlaybackContext,
 } from "@/utils/spotify";
 import {
   SpotifyPlaylistDetails,
@@ -69,14 +71,22 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
               name: "Liked Songs",
               description: "Songs you've liked across Spotify",
               images: [
-                { url: "https://misc.scdn.co/liked-songs/liked-songs-640.png" },
+                {
+                  url: "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                  height: 640,
+                  width: 640,
+                },
               ],
               uri: "spotify:playlist:liked-songs",
               owner: { display_name: "You" },
               tracks: {
+                href: "",
                 items: [],
-                total: result.total,
+                limit: 50,
                 next: result.next,
+                offset: 0,
+                previous: null,
+                total: result.total,
               },
               followers: { total: 0 },
             });
@@ -230,7 +240,18 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
   );
 
   const handlePlayTrack = async (uri: string) => {
-    const success = await playTrack(uri);
+    // Create playback context with all tracks from the playlist
+    const trackUris = tracks.map((item) => {
+      const track =
+        "track" in item ? item.track : (item as SpotifyPlaylistTrack).track;
+      return track.uri;
+    });
+
+    // Set the playback context with the current track and all tracks
+    setPlaybackContext("playlist", playlistId, trackUris, uri);
+
+    // Play the track with context (which will queue subsequent tracks)
+    const success = await playTrackWithContext(uri);
     if (success) {
       setCurrentlyPlaying({ uri, isPlaying: true });
     }

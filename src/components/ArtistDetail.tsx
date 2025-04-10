@@ -2,21 +2,20 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "@/App";
 import { MediaDetail } from "./MediaDetail";
 import { AlbumDetail } from "./AlbumDetail";
-import { MediaCard } from "./MediaCard";
+import { MediaGrid } from "./MediaGrid";
 import {
   getArtistDetails,
   getArtistTopTracks,
   getArtistAlbums,
-  playTrack,
+  playTrackWithContext,
   playAlbum,
+  setPlaybackContext,
 } from "@/utils/spotify";
 import {
   SpotifyArtistDetails,
   SpotifyAlbum,
   SpotifyTrackItem,
 } from "@/utils/spotify.types";
-import { Card } from "@/components/ui/card";
-import { Music } from "lucide-react";
 
 interface ArtistDetailProps {
   artistId: string;
@@ -89,22 +88,32 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
   };
 
   // Handle track play
-  const handlePlayTrack = useCallback(async (uri: string) => {
-    try {
-      const success = await playTrack(uri);
-      if (success) {
-        // Extract track ID from URI (format: spotify:track:id)
-        const idParts = uri.split(":");
-        if (idParts.length === 3) {
-          setCurrentlyPlayingTrackId(idParts[2]);
-          setCurrentlyPlayingAlbumId(null);
-          setIsPlaying(true);
+  const handlePlayTrack = useCallback(
+    async (uri: string) => {
+      try {
+        // Create playback context with all top tracks
+        const trackUris = topTracks.map((track) => track.uri);
+
+        // Set the playback context
+        setPlaybackContext("artist", artistId, trackUris, uri);
+
+        // Play the track with context (which will queue subsequent tracks)
+        const success = await playTrackWithContext(uri);
+        if (success) {
+          // Extract track ID from URI (format: spotify:track:id)
+          const idParts = uri.split(":");
+          if (idParts.length === 3) {
+            setCurrentlyPlayingTrackId(idParts[2]);
+            setCurrentlyPlayingAlbumId(null);
+            setIsPlaying(true);
+          }
         }
+      } catch (error) {
+        console.error("Failed to play track:", error);
       }
-    } catch (error) {
-      console.error("Failed to play track:", error);
-    }
-  }, []);
+    },
+    [topTracks, artistId]
+  );
 
   // Handle album play
   const handlePlayAlbum = useCallback(async (uri: string) => {
@@ -138,6 +147,11 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
     },
     [navigate]
   );
+
+  // Handle album selection
+  const handleAlbumSelect = useCallback((albumId: string) => {
+    setSelectedAlbumId(albumId);
+  }, []);
 
   // Format the track data for MediaDetail component with artist data
   const mediaDetailTracks = useMemo(() => {
@@ -269,42 +283,19 @@ export function ArtistDetail({ artistId }: ArtistDetailProps) {
             />
 
             {/* Albums section */}
-            <div ref={albumsSectionRef} className="px-6 pb-6 mt-8">
-              <h2 className="text-xl font-bold mb-4">Albums</h2>
-              {albums.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {albums.map((album) => (
-                    <MediaCard
-                      key={album.id}
-                      id={album.id}
-                      name={album.name}
-                      images={album.images || []}
-                      uri={album.uri}
-                      onClick={setSelectedAlbumId}
-                      onPlay={handlePlayAlbum}
-                      isPlaying={
-                        isPlaying && album.id === currentlyPlayingAlbumId
-                      }
-                      type="album"
-                      additionalInfo={
-                        <>
-                          {album.release_date?.substring(0, 4)} •{" "}
-                          {album.name.toLowerCase().includes("single")
-                            ? "Single"
-                            : "Album"}
-                        </>
-                      }
-                    />
-                  ))}
-                </div>
-              ) : (
-                <Card className="p-6 text-center">
-                  <div className="flex justify-center mb-4">
-                    <Music className="h-12 w-12 text-muted-foreground" />
-                  </div>
-                  <p className="text-muted-foreground">No albums found</p>
-                </Card>
-              )}
+            <div ref={albumsSectionRef} className="mt-8">
+              <MediaGrid
+                title="Albums"
+                items={albums}
+                loading={false}
+                error={null}
+                onRetry={() => {}} // Not needed as we handle errors at parent level
+                onPlay={handlePlayAlbum}
+                onSelect={handleAlbumSelect}
+                type="album"
+                currentlyPlayingId={currentlyPlayingAlbumId}
+                useCircularImages={false}
+              />
             </div>
           </div>
         </div>

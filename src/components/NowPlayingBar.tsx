@@ -1,15 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   getCurrentTrackInfo,
   pausePlayback,
   resumePlayback,
-  skipToNext,
-  skipToPrevious,
   setVolume,
   subscribeToPlayerState,
   unsubscribeFromPlayerState,
+  playNextInQueue,
+  playPreviousInQueue,
 } from "@/utils/spotify";
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import { useNavigate } from "@/App";
@@ -100,6 +100,23 @@ export function NowPlayingBar() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  // Handle Next/Previous buttons
+  const handleNext = useCallback(async () => {
+    // Use our internal queue system instead of Spotify's skipToNext
+    const success = await playNextInQueue();
+    if (success) {
+      // Audio feedback will be handled by the player state change
+    }
+  }, []);
+
+  const handlePrevious = useCallback(async () => {
+    // Use our internal queue system instead of Spotify's skipToPrevious
+    const success = await playPreviousInQueue();
+    if (success) {
+      // Audio feedback will be handled by the player state change
+    }
+  }, []);
+
   // Simplified rendering logic
   if (loading || error || !trackInfo) {
     return (
@@ -160,7 +177,7 @@ export function NowPlayingBar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={skipToPrevious}
+            onClick={handlePrevious}
             className="h-8 w-8"
           >
             <SkipBack className="h-4 w-4" />
@@ -180,7 +197,7 @@ export function NowPlayingBar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={skipToNext}
+            onClick={handleNext}
             className="h-8 w-8"
           >
             <SkipForward className="h-4 w-4" />

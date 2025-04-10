@@ -43,6 +43,7 @@ interface MediaDetailProps {
   hasMore?: boolean;
   loadingRef?: (node: HTMLDivElement) => void;
   noScrollContainer?: boolean; // New prop to control whether to add scrollable container
+  actionButtons?: React.ReactNode; // New prop for action buttons
 }
 
 export function formatDuration(ms: number): string {
@@ -110,7 +111,6 @@ function MediaDetailHeader({
 }
 
 function MediaDetailTrack({
-  index,
   name,
   artists,
   artistsData,
@@ -286,6 +286,7 @@ export function MediaDetail({
   hasMore = false,
   loadingRef,
   noScrollContainer = false, // Default to false to maintain backward compatibility
+  actionButtons, // Added actionButtons prop
 }: MediaDetailProps) {
   if (loading) {
     return <MediaDetailLoading onBack={onBack} title={title} />;
@@ -303,7 +304,8 @@ export function MediaDetail({
           <MediaDetailHeader {...headerProps} />
         </div>
       </div>
-
+      {actionButtons && <div className="p-6">{actionButtons}</div>}{" "}
+      {/* Render action buttons */}
       {/* Track listing */}
       <div className="px-6 pb-6 mt-12">
         <div className="grid grid-cols-[auto_2fr_1.5fr_auto] gap-4 mb-1 px-4 text-xs text-muted-foreground font-medium border-b border-muted/20 pb-2">

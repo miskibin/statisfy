@@ -1,14 +1,8 @@
-import {
-  Home,
-  Search,
-  Library,
-  ListMusic,
-  Heart,
-  History,
-  LineChart,
-  Disc,
-  PersonStandingIcon,
-} from "lucide-react";
+"use client";
+
+import type React from "react";
+
+import { Home, ListMusic, Bug, Disc, PersonStandingIcon } from "lucide-react";
 
 import {
   Sidebar,
@@ -19,6 +13,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 
 interface AppSidebarProps {
@@ -33,11 +28,6 @@ const items = [
     icon: Home,
   },
   {
-    title: "Your Library",
-    url: "/library",
-    icon: Library,
-  },
-  {
     title: "Artists",
     url: "/artists",
     icon: PersonStandingIcon,
@@ -47,27 +37,16 @@ const items = [
     url: "/playlists",
     icon: ListMusic,
   },
-
-  {
-    title: "Recently Played",
-    url: "/recent",
-    icon: History,
-  },
   {
     title: "Queue",
     url: "/queue",
-    icon: History,
+    icon: Bug,
   },
   {
     title: "New Releases",
     url: "/new-releases",
     icon: Disc,
   },
-  // {
-  //   title: "Statistics",
-  //   url: "/stats",
-  //   icon: LineChart,
-  // },
 ];
 
 export function AppSidebar({ navigate }: AppSidebarProps) {
@@ -81,17 +60,22 @@ export function AppSidebar({ navigate }: AppSidebarProps) {
     <Sidebar variant="floating" collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Statisfy</SidebarGroupLabel>
+          <SidebarGroupLabel>SpotiLite</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    asChild
+                    className="[&>a>svg]:size-6" // Increase icon size from default size-4 to size-6
+                    tooltip={item.title} // Add tooltip for collapsed state
+                  >
                     <a
                       href={item.url}
                       onClick={(e) => handleNavigation(item.url, e)}
+                      className="flex items-center gap-3" // Increase gap between icon and text
                     >
-                      <item.icon />
+                      <item.icon className="shrink-0" />
                       <span>{item.title}</span>
                     </a>
                   </SidebarMenuButton>
@@ -101,6 +85,7 @@ export function AppSidebar({ navigate }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarRail />
     </Sidebar>
   );
 }

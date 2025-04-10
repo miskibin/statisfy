@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "statisfy",
+  "productName": "SpotiLite",
   "version": "0.1.0",
-  "identifier": "com.statisfy.app",
+  "identifier": "com.SpotiLite.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -23,7 +23,7 @@
     "windows": [
       {
         "decorations": false,
-        "title": "statisfy",
+        "title": "SpotiLite",
         "width": 1000,
         "height": 600
       }

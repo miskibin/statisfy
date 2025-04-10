@@ -1,5 +1,5 @@
+import { Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, ListMusic, Disc } from "lucide-react";
 import { ReactNode } from "react";
 
 interface MediaCardProps {
@@ -7,91 +7,88 @@ interface MediaCardProps {
   name: string;
   images: { url: string }[];
   uri?: string;
-  onClick: (id: string) => void;
+  onClick?: () => void;
   onPlay?: (uri: string) => void;
   isPlaying?: boolean;
-  type: "album" | "playlist";
-  /* Secondary information like artists or number of tracks */
-  secondaryInfo?: ReactNode;
-  /* Additional info like release year, album type */
-  additionalInfo?: ReactNode;
+  // type: "playlist" | "album" | "artist";
+  secondaryInfo?: string;
+  useCircularImage?: boolean;
+  placeholderIcon?: ReactNode;
 }
 
 export function MediaCard({
-  id,
   name,
   images,
   uri,
   onClick,
   onPlay,
   isPlaying = false,
-  type,
   secondaryInfo,
-  additionalInfo,
+  useCircularImage = false,
+  placeholderIcon,
 }: MediaCardProps) {
-  const Icon = type === "playlist" ? ListMusic : Disc;
+  const handlePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (uri && onPlay) {
+      onPlay(uri);
+    }
+  };
 
   return (
-    <div className="group cursor-pointer" onClick={() => onClick(id)}>
-      <div className="aspect-square bg-muted/40 rounded-md overflow-hidden relative mb-2">
-        {/* Cover image or placeholder */}
-        {images && images.length > 0 && images[0]?.url ? (
+    <div
+      className={`group relative rounded-md bg-background ${
+        onClick ? "cursor-pointer" : ""
+      }`}
+      onClick={onClick}
+    >
+      <div
+        className={`relative overflow-hidden bg-muted/40 ${
+          useCircularImage
+            ? "rounded-full aspect-square p-1.5 flex items-center justify-center"
+            : "rounded-md aspect-square"
+        }`}
+      >
+        {images && images.length > 0 ? (
           <img
             src={images[0].url}
             alt={name}
-            className="w-full h-full object-cover"
+            className={`h-full w-full object-cover transition-all group-hover:opacity-80 ${
+              useCircularImage ? "rounded-full" : ""
+            }`}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Icon className="h-12 w-12 text-muted-foreground" />
+          <div className="flex h-full w-full items-center justify-center">
+            {placeholderIcon}
           </div>
         )}
 
-        {/* Play overlay when hovering */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          {onPlay && uri && (
-            <Button
-              variant="secondary"
-              size="icon"
-              className="rounded-full h-12 w-12"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPlay(uri);
-              }}
-            >
-              {isPlaying ? (
-                <Pause className="h-6 w-6" />
-              ) : (
-                <Play className="h-6 w-6 ml-0.5" />
-              )}
-            </Button>
-          )}
-        </div>
-
-        {/* Currently playing indicator */}
-        {isPlaying && (
-          <div className="absolute bottom-2 right-2 rounded-full bg-primary w-3 h-3 animate-pulse" />
+        {onPlay && uri && (
+          <Button
+            size="icon"
+            variant="secondary"
+            className={`absolute shadow-lg transition-opacity ${
+              useCircularImage
+                ? "bottom-1/2 right-1/2 translate-x-1/2 translate-y-1/2 h-8 w-8 opacity-0 group-hover:opacity-100"
+                : "bottom-2 right-2 h-9 w-9 opacity-0 group-hover:opacity-100"
+            } ${isPlaying ? "opacity-100" : ""}`}
+            onClick={handlePlay}
+          >
+            {isPlaying ? (
+              <Pause
+                className={`${useCircularImage ? "h-4 w-4" : "h-5 w-5"}`}
+              />
+            ) : (
+              <Play className={`${useCircularImage ? "h-4 w-4" : "h-5 w-5"}`} />
+            )}
+          </Button>
         )}
       </div>
-
-      {/* Media information */}
-      <div
-        className={`truncate font-medium ${isPlaying ? "text-primary" : ""}`}
-      >
-        {name}
+      <div className={`mt-2 ${useCircularImage ? "text-center" : ""}`}>
+        <div className="font-medium line-clamp-1">{name}</div>
+        {secondaryInfo && (
+          <p className="text-xs text-muted-foreground">{secondaryInfo}</p>
+        )}
       </div>
-
-      {secondaryInfo && (
-        <div className="truncate text-xs text-muted-foreground">
-          {secondaryInfo}
-        </div>
-      )}
-
-      {additionalInfo && (
-        <div className="truncate text-xs text-muted-foreground">
-          {additionalInfo}
-        </div>
-      )}
     </div>
   );
 }

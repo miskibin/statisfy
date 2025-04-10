@@ -9,7 +9,7 @@ export function Navbar({ onLogout }: NavbarProps) {
   return (
     <div className="w-full px-4 py-3 border-b bg-background flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <span className="font-bold text-lg">Statisfy</span>
+        <span className="font-bold text-lg">SpotiLite</span>
       </div>
 
       <div className="flex items-center gap-4">

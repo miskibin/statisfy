@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from "react";
 import "@/App.css";
 import { SpotifyLogin } from "@/components/SpotifyLogin";
-import { getAccessToken } from "@/utils/spotify";
+import { getAccessToken, clearPlaybackContext } from "@/utils/spotify";
 import { ThemeProvider } from "./components/theme-provider";
 import { Layout } from "./components/layout/Layout";
 import { UserPlaylists } from "./components/UserPlaylists";
@@ -198,6 +198,7 @@ function App() {
     localStorage.removeItem("spotify_access_token");
     localStorage.removeItem("spotify_refresh_token");
     localStorage.removeItem("spotify_token_expiry");
+    clearPlaybackContext();
     setIsAuthenticated(false);
   };
 

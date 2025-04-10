@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { getAlbumDetails, playTrack, playAlbum } from "@/utils/spotify";
+import {
+  getAlbumDetails,
+  playTrackWithContext,
+  setPlaybackContext,
+  playAlbum,
+} from "@/utils/spotify";
 import { spotifyApi } from "@/utils/apiClient";
 import { MediaDetail } from "@/components/MediaDetail";
 import {
@@ -91,8 +96,17 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
   }, [album]);
 
   const handlePlayTrack = async (uri: string) => {
-    await playTrack(uri);
-    setCurrentlyPlaying({ uri, isPlaying: true });
+    // Create playback context with all album tracks
+    const trackUris = album?.tracks.items.map((track) => track.uri) || [];
+
+    // Set the playback context
+    setPlaybackContext("album", albumId, trackUris, uri);
+
+    // Play the track with context (which will queue subsequent tracks)
+    const success = await playTrackWithContext(uri);
+    if (success) {
+      setCurrentlyPlaying({ uri, isPlaying: true });
+    }
   };
 
   const handlePlayAlbum = async () => {

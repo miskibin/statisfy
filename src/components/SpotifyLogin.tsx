@@ -12,7 +12,7 @@ export function SpotifyLogin() {
 
   return (
     <div className="flex flex-col items-center gap-3 p-4">
-      <h2 className="text-xl font-semibold">Statisfy Player</h2>
+      <h2 className="text-xl font-semibold">SpotiLite Player</h2>
       <p className="text-sm text-muted-foreground text-center">
         Connect your Spotify account to listen to music
       </p>
