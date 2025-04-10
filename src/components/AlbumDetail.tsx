@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
-import {
-  getAlbumDetails,
-  playTrack,
-  playAlbum,
-  getCurrentPlayback,
-} from "@/utils/spotify";
+import { getAlbumDetails, playTrack, playAlbum } from "@/utils/spotify";
+import { spotifyApi } from "@/utils/apiClient";
 import { MediaDetail } from "@/components/MediaDetail";
-import { SpotifyAlbumDetails } from "@/utils/spotify.types";
+import {
+  SpotifyAlbumDetails,
+  SpotifyPlaybackState,
+} from "@/utils/spotify.types";
 import { Star } from "lucide-react";
 import { useNavigate } from "@/App";
 
@@ -56,7 +55,9 @@ export function AlbumDetail({ albumId, onBack }: AlbumDetailProps) {
   useEffect(() => {
     const checkPlaybackState = async () => {
       try {
-        const playback = await getCurrentPlayback();
+        const playback = await spotifyApi.get<SpotifyPlaybackState>(
+          "/me/player"
+        );
 
         if (playback && playback.item) {
           // Check if this album is the current context

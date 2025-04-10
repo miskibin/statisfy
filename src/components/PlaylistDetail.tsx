@@ -5,7 +5,6 @@ import {
   getPlaylistDetails,
   playPlaylist,
   playTrack,
-  getCurrentPlayback,
   getLikedSongs,
 } from "@/utils/spotify";
 import {
@@ -13,6 +12,7 @@ import {
   SpotifyPagingObject,
   SpotifyPlaylistTrack,
   SpotifySavedTrack,
+  SpotifyPlaybackState,
 } from "@/utils/spotify.types";
 import { spotifyApi } from "@/utils/apiClient";
 import { Heart } from "lucide-react";
@@ -111,7 +111,9 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
   useEffect(() => {
     const checkPlaybackState = async () => {
       try {
-        const playback = await getCurrentPlayback();
+        const playback = await spotifyApi.get<SpotifyPlaybackState>(
+          "/me/player"
+        );
 
         if (playback && playback.item) {
           // Check if this playlist is the current context
@@ -281,7 +283,7 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
     const isPlaying = isCurrentTrack && currentlyPlaying?.isPlaying;
     const addedAt =
       "added_at" in item ? formatAddedDate(item.added_at) : undefined;
-    console.log(track.album);
+
     // Get album image URL - select the appropriate size
     const albumImages = track.album?.images || [];
     // Prefer small images for thumbnails (~64px)

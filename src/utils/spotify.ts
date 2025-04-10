@@ -3,6 +3,7 @@ import axios from "axios";
 import {
   WebPlaybackPlayer,
   WebPlaybackError,
+  WebPlaybackState,
   SpotifyPlaybackState,
   SpotifyPlaylistsResponse,
   SpotifyNewReleasesResponse,
@@ -38,123 +39,270 @@ const SCOPES = [
   "streaming",
 ];
 
-// Player state
+// Player state management
 let player: WebPlaybackPlayer | null = null;
 let deviceId: string | null = null;
-let deviceReadyPromise: Promise<string | null> | null = null;
+let currentState: WebPlaybackState | null = null;
+let playerError: string | null = null;
+let progressUpdateInterval: number | null = null;
+let stateObservers: Array<(state: any, error: string | null) => void> = [];
+
+interface TrackInfo {
+  name: string;
+  artists: { name: string; id: string }[];
+  albumArt: string;
+  isPlaying: boolean;
+  duration: number;
+  progress: number;
+  deviceVolume?: number;
+}
 
 // SDK Utilities
-const isSDKLoaded = (): boolean => !!window.Spotify;
+const loadSpotifySDK = async (): Promise<void> => {
+  if (window.Spotify) return;
 
-const loadSpotifySDK = (): Promise<void> => {
-  if (isSDKLoaded()) return Promise.resolve();
-
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const script = document.createElement("script");
     script.src = "https://sdk.scdn.co/spotify-player.js";
     script.async = true;
-    script.onerror = reject;
     document.body.appendChild(script);
-
     window.onSpotifyWebPlaybackSDKReady = resolve;
   });
 };
+
+// Get current playback state from Spotify Web API
+export const getCurrentPlaybackState =
+  async (): Promise<SpotifyPlaybackState | null> => {
+    return await spotifyApi.get<SpotifyPlaybackState>("/me/player");
+  };
 
 // Player initialization
 export const initializePlayer = async (
   playerName = "Statisfy Player"
 ): Promise<WebPlaybackPlayer | null> => {
-  // Return existing player if available
   if (player && deviceId) return player;
 
-  if (!localStorage.getItem("spotify_access_token")) {
-    console.error("No access token available");
-    return null;
-  }
-
-  // Return existing initialization promise if in progress
-  if (deviceReadyPromise) {
-    await deviceReadyPromise;
-    return player;
-  }
+  const accessToken = localStorage.getItem("spotify_access_token");
+  if (!accessToken) return null;
 
   try {
     await loadSpotifySDK();
 
-    // Create promise that resolves when device ID is available
-    deviceReadyPromise = new Promise((resolve) => {
-      try {
-        // Create player instance
-        player = new window.Spotify.Player({
-          name: playerName,
-          getOAuthToken: (cb: (token: string) => void) =>
-            cb(localStorage.getItem("spotify_access_token") || ""),
-          volume: 0.5,
-        }) as WebPlaybackPlayer;
+    player = new window.Spotify.Player({
+      name: playerName,
+      getOAuthToken: (cb: (token: string) => void) => cb(accessToken),
+      volume: 0.5,
+    }) as WebPlaybackPlayer;
 
-        // Add event listeners for player errors
-        const errorEvents = [
-          "initialization_error",
-          "authentication_error",
-          "account_error",
-        ];
-        errorEvents.forEach((event) => {
-          player!.addListener(event, ({ message }: WebPlaybackError) => {
-            console.error(`Spotify Player ${event}:`, message);
-            resolve(null);
-          });
-        });
-
-        player.addListener(
-          "playback_error",
-          ({ message }: WebPlaybackError) => {
-            console.error("Failed to perform playback:", message);
-          }
-        );
-
-        // Device ready/not ready
-        player.addListener("ready", ({ device_id }) => {
-          deviceId = device_id;
-          resolve(device_id);
-        });
-
-        player.addListener("not_ready", ({ device_id }) => {
-          deviceId = null;
-          console.log("Device ID is not ready:", device_id);
-        });
-
-        // Connect to player
-        player
-          .connect()
-          .then((success) => {
-            if (!success) {
-              console.error("Failed to connect to Spotify player");
-              resolve(null);
-            }
-          })
-          .catch((error) => {
-            console.error("Error connecting to player:", error);
-            resolve(null);
-          });
-      } catch (error) {
-        console.error("Error setting up player:", error);
-        resolve(null);
+    // Configure essential event listeners
+    player.addListener(
+      "initialization_error",
+      ({ message }: WebPlaybackError) => {
+        playerError = `Initialization error: ${message}`;
+        notifyObservers();
+        player = null;
       }
+    );
+
+    player.addListener(
+      "authentication_error",
+      ({ message }: WebPlaybackError) => {
+        playerError = `Authentication error: ${message}`;
+        notifyObservers();
+        player = null;
+      }
+    );
+
+    player.addListener("account_error", ({ message }: WebPlaybackError) => {
+      playerError = `Account error: ${message}`;
+      notifyObservers();
+      player = null;
     });
+
+    player.addListener("playback_error", ({ message }: WebPlaybackError) => {
+      playerError = `Playback error: ${message}`;
+      notifyObservers();
+    });
+
+    // Device ready/not ready
+    const deviceIdPromise = new Promise<string | null>((resolve) => {
+      player!.addListener("ready", ({ device_id }) => {
+        deviceId = device_id;
+        playerError = null;
+        resolve(device_id);
+      });
+
+      player!.addListener("not_ready", ({ device_id }) => {
+        deviceId = null;
+        playerError = "Device not ready";
+        notifyObservers();
+        resolve(null);
+      });
+    });
+
+    // Set up player state change listener
+    player.addListener("player_state_changed", (state) => {
+      if (state) {
+        currentState = state;
+        updateProgressTimer(state);
+        playerError = null;
+      } else {
+        currentState = null;
+      }
+      notifyObservers();
+    });
+
+    // Connect player
+    const connected = await player.connect();
+    if (!connected) {
+      playerError = "Failed to connect Spotify player";
+      notifyObservers();
+      return null;
+    }
 
     // Wait for device ID with timeout
     const deviceIdResult = await Promise.race([
-      deviceReadyPromise,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)), // 15s timeout
+      deviceIdPromise,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
     ]);
 
-    deviceReadyPromise = null;
-    if (!deviceIdResult) return null;
+    if (deviceIdResult) {
+      const initialState = await player.getCurrentState();
+      if (initialState) {
+        currentState = initialState;
+        updateProgressTimer(initialState);
+      }
+      await ensureActiveDevice();
+    }
 
-    return player;
+    notifyObservers();
+    return deviceIdResult ? player : null;
   } catch (error) {
-    console.error("Error initializing Spotify player:", error);
-    deviceReadyPromise = null;
+    playerError = "Error initializing player";
+    notifyObservers();
+    return null;
+  }
+};
+
+// Update progress timer for accurate progress tracking
+const updateProgressTimer = (state: WebPlaybackState) => {
+  if (progressUpdateInterval) {
+    window.clearInterval(progressUpdateInterval);
+    progressUpdateInterval = null;
+  }
+
+  if (!state.paused) {
+    let currentPosition = state.position;
+    const startTime = Date.now();
+
+    progressUpdateInterval = window.setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      currentPosition = Math.min(state.position + elapsed, state.duration);
+
+      if (currentState && currentPosition < state.duration) {
+        currentState = {
+          ...currentState,
+          position: currentPosition,
+        };
+        notifyObservers();
+      } else if (currentPosition >= state.duration) {
+        window.clearInterval(progressUpdateInterval!);
+        progressUpdateInterval = null;
+      }
+    }, 1000);
+  }
+};
+
+// Convert WebPlaybackState to TrackInfo for UI
+const convertStateToTrackInfo = (
+  state: WebPlaybackState | null
+): TrackInfo | null => {
+  if (!state || !state.track_window?.current_track) return null;
+
+  const { track_window, paused, position, duration } = state;
+  const { current_track } = track_window;
+
+  return {
+    name: current_track.name,
+    artists: current_track.artists.map((a) => ({
+      name: a.name,
+      id: a.uri.split(":")[2],
+    })),
+    albumArt: current_track.album.images[0]?.url || "",
+    isPlaying: !paused,
+    duration,
+    progress: position,
+  };
+};
+
+// Notify all observers of state changes
+const notifyObservers = () => {
+  const trackInfo = currentState ? convertStateToTrackInfo(currentState) : null;
+  stateObservers.forEach((observer) => observer(trackInfo, playerError));
+};
+
+// Subscribe to player state changes
+export const subscribeToPlayerState = (
+  callback: (state: TrackInfo | null, error: string | null) => void
+) => {
+  if (!player) {
+    initializePlayer().catch(() => {
+      playerError = "Failed to initialize player";
+      callback(null, playerError);
+    });
+  }
+
+  stateObservers.push(callback);
+
+  if (currentState || playerError) {
+    const trackInfo = currentState
+      ? convertStateToTrackInfo(currentState)
+      : null;
+    callback(trackInfo, playerError);
+  }
+
+  return () => unsubscribeFromPlayerState(callback);
+};
+
+// Unsubscribe from player state changes
+export const unsubscribeFromPlayerState = (
+  callback: (state: TrackInfo | null, error: string | null) => void
+) => {
+  stateObservers = stateObservers.filter((observer) => observer !== callback);
+};
+
+// Get current track info
+export const getCurrentTrackInfo = async (): Promise<TrackInfo | null> => {
+  try {
+    if (player) {
+      const state = await player.getCurrentState();
+      if (state) {
+        const trackInfo = convertStateToTrackInfo(state);
+        if (trackInfo) {
+          const volume = await player.getVolume();
+          return { ...trackInfo, deviceVolume: Math.round(volume * 100) };
+        }
+      }
+    }
+
+    // Fallback to API if local player not available
+    const playback = await getCurrentPlaybackState();
+    if (playback && playback.item) {
+      return {
+        name: playback.item.name,
+        artists: playback.item.artists.map((a) => ({
+          name: a.name,
+          id: a.id,
+        })),
+        albumArt: playback.item.album.images[0]?.url || "",
+        isPlaying: playback.is_playing,
+        duration: playback.item.duration_ms,
+        progress: playback.progress_ms || 0,
+        deviceVolume: playback.device?.volume_percent,
+      };
+    }
+    return null;
+  } catch {
     return null;
   }
 };
@@ -164,12 +312,28 @@ export const getPlayer = (): WebPlaybackPlayer | null => player;
 export const getDeviceId = (): string | null => deviceId;
 
 // Playback control functions
+export const ensureActiveDevice = async (): Promise<boolean> => {
+  if (!deviceId) {
+    await initializePlayer();
+    if (!deviceId) return false;
+  }
+
+  try {
+    const transferred = await spotifyApi.put("/me/player", {
+      device_ids: [deviceId],
+      play: true,
+    });
+    return transferred !== null;
+  } catch {
+    return false;
+  }
+};
+
 export const playOnThisDevice = async (uri?: string): Promise<boolean> => {
   if (!deviceId) return false;
 
   try {
     const body: any = { device_id: deviceId };
-
     if (uri) {
       if (uri.includes("track")) {
         body.uris = [uri];
@@ -177,58 +341,9 @@ export const playOnThisDevice = async (uri?: string): Promise<boolean> => {
         body.context_uri = uri;
       }
     }
-
     const result = await spotifyApi.put("/me/player/play", body);
     return result !== null;
-  } catch (error) {
-    console.error("Error playing on this device:", error);
-    return false;
-  }
-};
-
-export const transferPlaybackToThisDevice = async (): Promise<boolean> => {
-  if (!deviceId) return false;
-
-  try {
-    const result = await spotifyApi.put("/me/player", {
-      device_ids: [deviceId],
-      play: true,
-    });
-    return result !== null;
-  } catch (error) {
-    console.error("Error transferring playback:", error);
-    return false;
-  }
-};
-
-export const ensureActiveDevice = async (): Promise<boolean> => {
-  if (!deviceId) return false;
-
-  try {
-    // Try to transfer playback to this device
-    const transferred = await transferPlaybackToThisDevice();
-
-    if (!transferred) {
-      // Try playing last track as fallback
-      try {
-        const recentlyPlayed = await spotifyApi.get<{
-          items: Array<{
-            track: { uri: string };
-          }>;
-        }>("/me/player/recently-played?limit=1");
-
-        if (recentlyPlayed?.items && recentlyPlayed.items.length > 0) {
-          const track = recentlyPlayed.items[0].track;
-          return await playOnThisDevice(track.uri);
-        }
-      } catch (err) {
-        console.error("Error trying to play fallback track:", err);
-      }
-    }
-
-    return transferred;
-  } catch (err) {
-    console.error("Error ensuring active device:", err);
+  } catch {
     return false;
   }
 };
@@ -273,7 +388,7 @@ export const getAccessToken = async (code: string): Promise<string | null> => {
       }).toString(),
     });
 
-    if (!response.ok) throw new Error("Failed to get access token");
+    if (!response.ok) return null;
 
     const data = await response.json();
     localStorage.setItem("spotify_access_token", data.access_token);
@@ -284,260 +399,197 @@ export const getAccessToken = async (code: string): Promise<string | null> => {
     );
 
     return data.access_token;
-  } catch (error) {
-    console.error("Error getting access token:", error);
+  } catch {
     return null;
   }
 };
 
-// Playback API functions
-export const getCurrentPlayback =
-  async (): Promise<SpotifyPlaybackState | null> => {
-    return await spotifyApi.get<SpotifyPlaybackState>("/me/player");
-  };
-
-export const togglePlayback = async (playing: boolean) => {
-  const result = await spotifyApi.put(
-    `/me/player/${playing ? "pause" : "play"}`
-  );
-  return result !== null;
+// Playback control functions - simplified to only use player when available
+export const pausePlayback = async (): Promise<boolean> => {
+  if (!player) return false;
+  try {
+    await player.pause();
+    return true;
+  } catch {
+    return false;
+  }
 };
 
-export const skipToNext = async () => {
-  const result = await spotifyApi.post("/me/player/next");
-  return result !== null;
+export const resumePlayback = async (): Promise<boolean> => {
+  if (!player) return false;
+  try {
+    await player.resume();
+    return true;
+  } catch {
+    return false;
+  }
 };
 
-export const skipToPrevious = async () => {
-  const result = await spotifyApi.post("/me/player/previous");
-  return result !== null;
+export const skipToNext = async (): Promise<boolean> => {
+  if (!player) return false;
+  try {
+    await player.nextTrack();
+    return true;
+  } catch {
+    return false;
+  }
 };
 
-export const setVolume = async (volumePercent: number) => {
-  const result = await spotifyApi.put(
-    `/me/player/volume?volume_percent=${Math.round(volumePercent)}`
-  );
-  return result !== null;
+export const skipToPrevious = async (): Promise<boolean> => {
+  if (!player) return false;
+  try {
+    await player.previousTrack();
+    return true;
+  } catch {
+    return false;
+  }
 };
+
+export const setVolume = async (volumePercent: number): Promise<boolean> => {
+  if (!player) return false;
+  try {
+    await player.setVolume(volumePercent / 100);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const togglePlayback = async (playing: boolean) =>
+  playing ? pausePlayback() : resumePlayback();
 
 export const playTrack = async (uri: string) => {
-  const currentDeviceId = deviceId;
-  if (!currentDeviceId) return false;
+  if (!deviceId) {
+    const initialized = await ensureActiveDevice();
+    if (!initialized) return false;
+  }
 
   try {
     const result = await spotifyApi.put("/me/player/play", {
       uris: [uri],
-      device_id: currentDeviceId,
+      device_id: deviceId,
     });
     return result !== null;
   } catch (error) {
-    // If device is not active, try to activate it and retry
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      const transferred = await transferPlaybackToThisDevice();
-      if (transferred) {
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for transfer
-
-        const retryResult = await spotifyApi.put("/me/player/play", {
-          uris: [uri],
-          device_id: currentDeviceId,
-        });
-        return retryResult !== null;
+      const activated = await ensureActiveDevice();
+      if (activated) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        try {
+          const retry = await spotifyApi.put("/me/player/play", {
+            uris: [uri],
+            device_id: deviceId,
+          });
+          return retry !== null;
+        } catch {
+          return false;
+        }
       }
     }
-    console.error("Error playing track:", error);
     return false;
   }
 };
 
-// Content retrieval functions
-export const getUserPlaylists = async (
-  limit = 20,
-  offset = 0
-): Promise<SpotifyPlaylistsResponse | null> => {
-  const cacheTime = 5 * 60 * 1000; // 5 minutes
-  try {
-    const data = await spotifyApi.get<SpotifyPlaylistsResponse>(
-      `/me/playlists?limit=${limit}&offset=${offset}`,
-      undefined,
-      cacheTime
-    );
+// Content retrieval functions with caching
+export const getUserPlaylists = async (limit = 20, offset = 0) =>
+  spotifyApi.get<SpotifyPlaylistsResponse>(
+    `/me/playlists?limit=${limit}&offset=${offset}`,
+    undefined,
+    5 * 60 * 1000 // 5 min cache
+  );
 
-    return data || null;
-  } catch (error) {
-    console.error("Error fetching user playlists:", error);
-    return null;
-  }
-};
+export const getPlaylistDetails = async (playlistId: string) =>
+  spotifyApi.get<SpotifyPlaylistDetails>(
+    `/playlists/${playlistId}?fields=id,name,description,images,uri,owner.display_name,followers.total,tracks.items(added_at,track(id,name,uri,duration_ms,artists,album(id,name,images))),tracks.next,tracks.total`,
+    undefined,
+    5 * 60 * 1000 // 5 min cache
+  );
 
-export const getPlaylistDetails = async (
-  playlistId: string
-): Promise<SpotifyPlaylistDetails | null> => {
-  try {
-    const cacheTime = 5 * 60 * 1000; // 5 minutes cache
-    // Include fields parameter to ensure we get all needed data including album images
-    const playlist = await spotifyApi.get<SpotifyPlaylistDetails>(
-      `/playlists/${playlistId}?fields=id,name,description,images,uri,owner.display_name,followers.total,tracks.items(added_at,track(id,name,uri,duration_ms,artists,album(id,name,images))),tracks.next,tracks.total`,
-      undefined,
-      cacheTime
-    );
-    return playlist;
-  } catch (error) {
-    console.error("Error fetching playlist details:", error);
-    return null;
-  }
-};
-
-export const getAlbumDetails = async (
-  albumId: string
-): Promise<SpotifyAlbumDetails | null> => {
-  try {
-    const cacheTime = 5 * 60 * 1000; // 5 minutes cache
-    const album = await spotifyApi.get<SpotifyAlbumDetails>(
-      `/albums/${albumId}`,
-      undefined,
-      cacheTime
-    );
-    return album;
-  } catch (error) {
-    console.error("Error fetching album details:", error);
-    return null;
-  }
-};
+export const getAlbumDetails = async (albumId: string) =>
+  spotifyApi.get<SpotifyAlbumDetails>(
+    `/albums/${albumId}`,
+    undefined,
+    5 * 60 * 1000
+  );
 
 export const playPlaylist = async (playlistUri: string) => {
-  const currentDeviceId = deviceId;
-  if (!currentDeviceId) return false;
+  if (!deviceId) return false;
 
   try {
     const result = await spotifyApi.put("/me/player/play", {
       context_uri: playlistUri,
-      device_id: currentDeviceId,
+      device_id: deviceId,
     });
     return result !== null;
   } catch (error) {
-    // If device is not active, try to activate it and retry
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      const transferred = await transferPlaybackToThisDevice();
-      if (transferred) {
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for transfer
-
-        const retryResult = await spotifyApi.put("/me/player/play", {
-          context_uri: playlistUri,
-          device_id: currentDeviceId,
-        });
-        return retryResult !== null;
+      const activated = await ensureActiveDevice();
+      if (activated) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        try {
+          const retry = await spotifyApi.put("/me/player/play", {
+            context_uri: playlistUri,
+            device_id: deviceId,
+          });
+          return retry !== null;
+        } catch {
+          return false;
+        }
       }
     }
     return false;
   }
 };
 
-export const playAlbum = async (albumUri: string) => {
-  // Since playback logic is the same, reuse the playlist function
-  return playPlaylist(albumUri);
-};
+export const playAlbum = playPlaylist; // Same logic as playing a playlist
 
-export const getNewReleases = async (
-  limit = 20,
-  offset = 0
-): Promise<SpotifyPagingObject<SpotifyAlbum> | null> => {
-  const cacheTime = 60 * 60 * 1000; // 1 hour
+export const getNewReleases = async (limit = 20, offset = 0) => {
   const data = await spotifyApi.get<SpotifyNewReleasesResponse>(
     `/browse/new-releases?limit=${limit}&offset=${offset}`,
     undefined,
-    cacheTime
+    60 * 60 * 1000 // 1 hour cache
+  );
+  return data?.albums || null;
+};
+
+export const getLikedSongs = async (limit = 50, offset = 0) =>
+  spotifyApi.get<SpotifyPagingObject<SpotifySavedTrack>>(
+    `/me/tracks?limit=${limit}&offset=${offset}`,
+    undefined,
+    5 * 60 * 1000 // 5 min cache
   );
 
-  return data && data.albums ? data.albums : null;
-};
+export const getArtistDetails = async (artistId: string) =>
+  spotifyApi.get<SpotifyArtistDetails>(
+    `/artists/${artistId}`,
+    undefined,
+    30 * 60 * 1000
+  );
 
-// Function to get user's saved tracks (liked songs)
-export const getLikedSongs = async (
-  limit = 50,
-  offset = 0
-): Promise<SpotifyPagingObject<SpotifySavedTrack> | null> => {
-  const cacheTime = 5 * 60 * 1000; // 5 minutes
-  try {
-    const data = await spotifyApi.get<SpotifyPagingObject<SpotifySavedTrack>>(
-      `/me/tracks?limit=${limit}&offset=${offset}`,
-      undefined,
-      cacheTime
-    );
-
-    return data || null;
-  } catch (error) {
-    console.error("Error fetching liked songs:", error);
-    return null;
-  }
-};
-
-// Artist-related API functions
-export const getArtistDetails = async (
-  artistId: string
-): Promise<SpotifyArtistDetails | null> => {
-  try {
-    const cacheTime = 30 * 60 * 1000; // 30 minutes cache
-    const artist = await spotifyApi.get<SpotifyArtistDetails>(
-      `/artists/${artistId}`,
-      undefined,
-      cacheTime
-    );
-    return artist;
-  } catch (error) {
-    console.error("Error fetching artist details:", error);
-    return null;
-  }
-};
-
-export const getArtistTopTracks = async (
-  artistId: string
-): Promise<SpotifyTopTracksResponse | null> => {
-  try {
-    const cacheTime = 30 * 60 * 1000; // 30 minutes cache
-    // Using the market parameter to get relevant tracks for the user's location
-    const topTracks = await spotifyApi.get<SpotifyTopTracksResponse>(
-      `/artists/${artistId}/top-tracks?market=from_token`,
-      undefined,
-      cacheTime
-    );
-    return topTracks;
-  } catch (error) {
-    console.error("Error fetching artist top tracks:", error);
-    return null;
-  }
-};
+export const getArtistTopTracks = async (artistId: string) =>
+  spotifyApi.get<SpotifyTopTracksResponse>(
+    `/artists/${artistId}/top-tracks?market=from_token`,
+    undefined,
+    30 * 60 * 1000 // 30 min cache
+  );
 
 export const getArtistAlbums = async (
   artistId: string,
   limit = 10,
   offset = 0
-): Promise<SpotifyPagingObject<SpotifyAlbum> | null> => {
-  try {
-    const cacheTime = 30 * 60 * 1000; // 30 minutes cache
-    const albums = await spotifyApi.get<SpotifyPagingObject<SpotifyAlbum>>(
-      `/artists/${artistId}/albums?include_groups=album,single&limit=${limit}&offset=${offset}&market=from_token`,
-      undefined,
-      cacheTime
-    );
-    return albums;
-  } catch (error) {
-    console.error("Error fetching artist albums:", error);
-    return null;
-  }
-};
+) =>
+  spotifyApi.get<SpotifyPagingObject<SpotifyAlbum>>(
+    `/artists/${artistId}/albums?include_groups=album,single&limit=${limit}&offset=${offset}&market=from_token`,
+    undefined,
+    30 * 60 * 1000 // 30 min cache
+  );
 
-// Queue-related functions
-export const getQueue = async (): Promise<SpotifyQueueResponse | null> => {
-  try {
-    const cacheTime = 10 * 1000; // Short cache time (10s) since queue changes often
-    const queue = await spotifyApi.get<SpotifyQueueResponse>(
-      "/me/player/queue",
-      undefined,
-      cacheTime
-    );
-    return queue;
-  } catch (error) {
-    console.error("Error fetching queue:", error);
-    return null;
-  }
-};
+export const getQueue = async () =>
+  spotifyApi.get<SpotifyQueueResponse>(
+    "/me/player/queue",
+    undefined,
+    10 * 1000
+  ); // Short 10s cache
+
+export const getCurrentPlayback = async () =>
+  spotifyApi.get<SpotifyPlaybackState>("/me/player");
