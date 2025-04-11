@@ -258,7 +258,6 @@ const convertStateToTrackInfo = (
 
   const { track_window, paused, position, duration } = state;
   const { current_track } = track_window;
-
   return {
     name: current_track.name,
     artists: current_track.artists.map((a) => ({
@@ -275,35 +274,47 @@ const convertStateToTrackInfo = (
 // Notify all observers of state changes - simplified and uses playerStore more efficiently
 const notifyObservers = () => {
   const trackInfo = currentState ? convertStateToTrackInfo(currentState) : null;
-  
+
   // Handle auto-advance logic
-  if (currentState && 
-      currentState.position >= currentState.duration - 1500 && 
-      !currentState.paused && 
-      !transitionInProgress) {
-    
+  if (
+    currentState &&
+    currentState.position >= currentState.duration - 1500 &&
+    !currentState.paused &&
+    !transitionInProgress
+  ) {
     transitionInProgress = true;
     playNextInQueue().finally(() => {
-      setTimeout(() => transitionInProgress = false, 1000);
+      setTimeout(() => (transitionInProgress = false), 1000);
     });
   }
-  
+
   // Update player store with current state
   if (currentState?.track_window?.current_track) {
     const playerStore = usePlayerStore.getState();
     const currentTrackUri = currentState.track_window.current_track.uri;
-    
+
+    // Transform the current track to include artist IDs
+    const transformedTrack = {
+      ...currentState.track_window.current_track,
+      artists: currentState.track_window.current_track.artists.map(
+        (artist) => ({
+          ...artist,
+          id: artist.uri ? artist.uri.split(":")[2] : "",
+        })
+      ),
+    };
+
     // Build update object with all relevant state
     const stateUpdate = {
-      currentTrack: currentState.track_window.current_track as any,
+      currentTrack: transformedTrack,
       isPlaying: !currentState.paused,
       progress: currentState.position,
       duration: currentState.duration,
     };
-    
+
     // Update player store
     playerStore.syncWithSpotifyState(stateUpdate);
-    
+
     // Update queue index if needed
     if (currentTrackUri) {
       const trackIndex = playerStore.queueTracks.indexOf(currentTrackUri);
@@ -312,9 +323,9 @@ const notifyObservers = () => {
       }
     }
   }
-  
+
   // Notify UI observers
-  stateObservers.forEach(observer => observer(trackInfo, playerError));
+  stateObservers.forEach((observer) => observer(trackInfo, playerError));
 };
 
 // Subscribe to player state changes
@@ -534,24 +545,24 @@ export const seekToPosition = async (positionMs: number): Promise<boolean> => {
     const initialized = await ensureActiveDevice();
     if (!initialized) return false;
   }
-  
+
   try {
     const result = await spotifyApi.put("/me/player/seek", null, {
       params: {
         position_ms: positionMs,
-        device_id: deviceId
-      }
+        device_id: deviceId,
+      },
     });
-    
+
     // Update current state manually for immediate feedback
     if (currentState) {
       currentState = {
         ...currentState,
-        position: positionMs
+        position: positionMs,
       };
       notifyObservers();
     }
-    
+
     return result !== null;
   } catch (error) {
     console.error("Error seeking to position:", error);
@@ -599,23 +610,23 @@ export const playLikedSongs = async (): Promise<boolean> => {
   try {
     // Get first batch of liked songs
     const likedSongs = await getLikedSongs(50, 0);
-    
+
     if (!likedSongs || !likedSongs.items || likedSongs.items.length === 0) {
       return false;
     }
-    
+
     // Extract URIs from liked songs
-    const trackUris = likedSongs.items.map(item => item.track.uri);
-    
+    const trackUris = likedSongs.items.map((item) => item.track.uri);
+
     // Use the store to set up queue
     const playerStore = usePlayerStore.getState();
     playerStore.setPlaybackSource("playlist", "liked-songs");
     playerStore.setQueueTracks(trackUris, 0);
-    
+
     // Start playing the first track
     const success = await playTrack(trackUris[0]);
     playerStore.setIsPlaying(success);
-    
+
     return success;
   } catch (error) {
     console.error("Error playing liked songs:", error);
@@ -658,10 +669,7 @@ export const playPlaylist = async (playlistUri: string): Promise<boolean> => {
     if (!playlistId) return false;
 
     // Load all tracks from this playlist into our queue
-    const success = await loadTracksIntoQueue(
-      "playlist",
-      playlistId,
-    );
+    const success = await loadTracksIntoQueue("playlist", playlistId);
     if (success) return true;
 
     // Fallback to direct Spotify playback if our queue loading fails
