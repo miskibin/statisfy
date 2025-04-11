@@ -93,8 +93,10 @@ export const getCurrentPlaybackState =
     return await spotifyApi.get<SpotifyPlaybackState>("/me/player");
   };
 
-// Add a track to the queue
-export const addTrackToQueue = async (trackUri: string): Promise<boolean> => {
+// Add a track to the queue (renamed to avoid conflict with our utility function)
+export const addTrackToSpotifyQueue = async (
+  trackUri: string
+): Promise<boolean> => {
   if (!deviceId) {
     const initialized = await ensureActiveDevice();
     if (!initialized) return false;
@@ -293,15 +295,34 @@ const notifyObservers = () => {
     const playerStore = usePlayerStore.getState();
     const currentTrackUri = currentState.track_window.current_track.uri;
 
-    // Transform the current track to include artist IDs
+    // Transform the WebPlaybackTrack to a SpotifyTrackItem
+    const track = currentState.track_window.current_track;
+
+    // Create artist objects for the track
+    const artistObjects = track.artists.map((artist) => ({
+      id: artist.uri ? artist.uri.split(":")[2] : "",
+      name: artist.name,
+      uri: artist.uri,
+    }));
+
     const transformedTrack = {
-      ...currentState.track_window.current_track,
-      artists: currentState.track_window.current_track.artists.map(
-        (artist) => ({
-          ...artist,
-          id: artist.uri ? artist.uri.split(":")[2] : "",
-        })
-      ),
+      id: track.id,
+      name: track.name,
+      uri: track.uri,
+      duration_ms: currentState.duration,
+      is_playable: track.is_playable,
+      artists: artistObjects,
+      album: {
+        id: track.album.uri.split(":")[2],
+        name: track.album.name,
+        uri: track.album.uri,
+        images: track.album.images.map((img) => ({
+          url: img.url,
+          height: null,
+          width: null,
+        })),
+        artists: artistObjects, // Include artists in album to match SpotifyAlbum interface
+      },
     };
 
     // Build update object with all relevant state
@@ -829,4 +850,5 @@ export {
   playPreviousInQueue,
   getTracksByUris,
   playTrackWithContext,
+  loadTracksIntoQueue,
 };

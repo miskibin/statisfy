@@ -1,4 +1,14 @@
-import { Clock, Image, Pause, Play } from "lucide-react";
+import { Clock, Image, Pause, Play, Plus } from "lucide-react";
+import { Button } from "./ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { toast } from "sonner";
+import { addTrackToQueue } from "@/utils/queue";
+import { useState } from "react";
 
 export interface TrackItemProps {
   id: string;
@@ -12,16 +22,20 @@ export interface TrackItemProps {
   onPlay: (uri: string) => Promise<void>;
   isPlaying?: boolean;
   isCurrentTrack?: boolean;
+  isRecentlyPlayed?: boolean;
+  isManuallyAdded?: boolean;
   onArtistClick?: (artistId: string) => void;
   albumId?: string;
   albumName?: string;
   onAlbumClick?: (albumId: string) => void;
+  actions?: React.ReactNode;
 }
 
 interface TrackListProps {
   tracks: TrackItemProps[];
   showHeader?: boolean;
   actionButtons?: React.ReactNode;
+  showAddToQueueButton?: boolean;
 }
 
 export function formatDuration(ms: number): string {
@@ -40,16 +54,42 @@ function TrackItem({
   onPlay,
   isCurrentTrack,
   isPlaying,
+  isRecentlyPlayed,
+  isManuallyAdded,
   onArtistClick,
   albumId,
   albumName,
   onAlbumClick,
+  actions,
 }: TrackItemProps) {
+  // Track when this item was added to queue for visual feedback
+  const [justAddedToQueue, setJustAddedToQueue] = useState(false);
+
+  // Add a track to the queue (next in line)
+  const handleAddToQueue = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const success = await addTrackToQueue(uri, true);
+
+    if (success) {
+      // Show toast notification
+      toast.success(`Added "${name}" to queue`);
+
+      // Show visual feedback temporarily
+      setJustAddedToQueue(true);
+      setTimeout(() => setJustAddedToQueue(false), 1500);
+    } else {
+      toast.error("Failed to add to queue");
+    }
+  };
+
   return (
     <div
       className={`grid grid-cols-[auto_2fr_1.5fr_auto] gap-4 px-4 py-2 hover:bg-muted/30 rounded-md group cursor-pointer ${
         isCurrentTrack ? "bg-muted/50" : ""
-      }`}
+      } ${isRecentlyPlayed ? "opacity-60" : ""} ${
+        isManuallyAdded ? "border-l-2 border-primary" : ""
+      } ${justAddedToQueue ? "bg-primary/10 transition-colors" : ""}
+      `}
       onClick={() => onPlay(uri)}
     >
       <div className="w-10 h-10 flex items-center justify-center relative">
@@ -80,12 +120,46 @@ function TrackItem({
       </div>
 
       <div className="min-w-0 flex flex-col justify-center">
-        <div
-          className={`truncate ${
-            isCurrentTrack ? "font-semibold" : "font-medium"
-          }`}
-        >
-          {name}
+        <div className="flex items-center">
+          <div
+            className={`truncate ${
+              isCurrentTrack ? "font-semibold" : "font-medium"
+            } ${
+              isManuallyAdded
+                ? "after:content-['•'] after:ml-1 after:text-primary"
+                : ""
+            }`}
+          >
+            {name}
+          </div>
+
+          {/* Add to queue button */}
+          <div className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-6 w-6 p-0 ${
+                      justAddedToQueue ? "text-primary animate-pulse" : ""
+                    }`}
+                    onClick={handleAddToQueue}
+                    disabled={justAddedToQueue}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {justAddedToQueue
+                      ? "Added to queue"
+                      : "Add to queue (next)"}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {artistsData && onArtistClick
@@ -123,8 +197,11 @@ function TrackItem({
         ) : null}
       </div>
 
-      <div className="text-xs text-muted-foreground self-center">
-        {formatDuration(duration)}
+      <div className="flex items-center gap-2">
+        {actions}
+        <div className="text-xs text-muted-foreground self-center">
+          {formatDuration(duration)}
+        </div>
       </div>
     </div>
   );

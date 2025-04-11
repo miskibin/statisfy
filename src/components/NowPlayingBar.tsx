@@ -18,9 +18,11 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
+  Shuffle,
 } from "lucide-react";
 import { useNavigate } from "@/App";
 import { usePlayerStore } from "@/stores/playerStore";
+import { toggleShuffleMode } from "@/utils/queue";
 
 export function NowPlayingBar() {
   const [previousVolume, setPreviousVolume] = useState(50);
@@ -33,6 +35,7 @@ export function NowPlayingBar() {
     progress,
     duration,
     volume,
+    isShuffleEnabled, // Add access to shuffle state
     setVolume: updateStoreVolume,
     syncWithSpotifyState,
   } = usePlayerStore();
@@ -42,7 +45,7 @@ export function NowPlayingBar() {
     const initPlayer = async () => {
       await initializePlayer();
       const trackInfo = await getCurrentTrackInfo();
-      
+
       if (trackInfo) {
         syncWithSpotifyState({
           isPlaying: trackInfo.isPlaying,
@@ -52,7 +55,7 @@ export function NowPlayingBar() {
         });
       }
     };
-    
+
     initPlayer();
   }, []);
 
@@ -64,8 +67,13 @@ export function NowPlayingBar() {
   const VolumeIcon = volume === 0 ? VolumeX : Volume2;
 
   // Playback control handlers
-  const handlePlayPause = () => 
+  const handlePlayPause = () =>
     hasTrack && (isPlaying ? pausePlayback() : resumePlayback());
+
+  // Toggle shuffle mode
+  const handleToggleShuffle = () => {
+    toggleShuffleMode();
+  };
 
   // Volume control
   const handleVolumeChange = (value: number[]) => {
@@ -76,10 +84,9 @@ export function NowPlayingBar() {
   };
 
   const handleVolumeButtonClick = () => {
-    const newVolume = volume === 0 
-      ? (previousVolume > 0 ? previousVolume : 50) 
-      : 0;
-    
+    const newVolume =
+      volume === 0 ? (previousVolume > 0 ? previousVolume : 50) : 0;
+
     if (volume > 0) setPreviousVolume(volume);
     updateStoreVolume(newVolume);
     setVolume(newVolume);
@@ -88,7 +95,7 @@ export function NowPlayingBar() {
   // Seek handling
   const handleSeek = (value: number[]) => {
     if (!hasTrack || !duration) return;
-    
+
     const seekPositionMs = Math.floor((value[0] / 100) * duration);
     usePlayerStore.getState().setProgress(seekPositionMs);
     seekToPosition(seekPositionMs);
@@ -156,29 +163,79 @@ export function NowPlayingBar() {
       {/* Controls */}
       <div className="flex flex-col items-center w-1/3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={playPreviousInQueue} className="h-8 w-8">
+          {/* Shuffle button */}
+          <Button
+            size="icon"
+            onClick={handleToggleShuffle}
+            variant={`${isShuffleEnabled ? "default" : "ghost"}`}
+            className={`h-8 w-8 ${isShuffleEnabled ? "bg-primary" : ""}`}
+            title={isShuffleEnabled ? "Disable shuffle" : "Enable shuffle"}
+          >
+            <Shuffle className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={playPreviousInQueue}
+            className="h-8 w-8"
+          >
             <SkipBack className="h-4 w-4" />
           </Button>
-          <Button onClick={handlePlayPause} variant="default" size="icon" className="rounded-full h-9 w-9">
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+          <Button
+            onClick={handlePlayPause}
+            variant="default"
+            size="icon"
+            className="rounded-full h-9 w-9"
+          >
+            {isPlaying ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4 ml-0.5" />
+            )}
           </Button>
-          <Button variant="ghost" size="icon" onClick={playNextInQueue} className="h-8 w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={playNextInQueue}
+            className="h-8 w-8"
+          >
             <SkipForward className="h-4 w-4" />
           </Button>
         </div>
         <div className="flex items-center w-full gap-2 mt-1">
-          <span className="text-xs text-muted-foreground">{formatTime(progress)}</span>
-          <Slider value={[progressPercent]} max={100} className="flex-1" onValueChange={handleSeek} />
-          <span className="text-xs text-muted-foreground">{formatTime(duration)}</span>
+          <span className="text-xs text-muted-foreground">
+            {formatTime(progress)}
+          </span>
+          <Slider
+            value={[progressPercent]}
+            max={100}
+            className="flex-1"
+            onValueChange={handleSeek}
+          />
+          <span className="text-xs text-muted-foreground">
+            {formatTime(duration)}
+          </span>
         </div>
       </div>
 
       {/* Volume */}
       <div className="flex items-center gap-2 w-1/3 justify-end">
-        <Button variant="ghost" size="icon" className="h-6 w-6 p-0" onClick={handleVolumeButtonClick}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 p-0"
+          onClick={handleVolumeButtonClick}
+        >
           <VolumeIcon className="h-3 w-3 text-muted-foreground" />
         </Button>
-        <Slider value={[volume]} max={100} step={5} className="w-24 md:w-32 lg:w-40" onValueChange={handleVolumeChange} />
+        <Slider
+          value={[volume]}
+          max={100}
+          step={5}
+          className="w-24 md:w-32 lg:w-40"
+          onValueChange={handleVolumeChange}
+        />
       </div>
     </div>
   );

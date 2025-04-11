@@ -16,6 +16,12 @@ export interface PlayerState {
   currentQueueIndex: number;
   isCircular: boolean;
 
+  // Shuffle state
+  isShuffleEnabled: boolean;
+  shuffleIndices: number[]; // Maps original indices to shuffled order
+  recentlyPlayedIndices: number[]; // Tracks recently played to avoid repeating
+  manuallyAddedTracks: Set<string>; // Tracks manually added by user
+
   // Context info (album, playlist, etc)
   sourceType: "album" | "playlist" | "artist" | "search" | "none";
   sourceId: string;
@@ -29,11 +35,19 @@ export interface PlayerState {
 
   setQueueTracks: (tracks: string[], index?: number) => void;
   setQueueTrackItems: (tracks: SpotifyTrackItem[]) => void;
-  addToQueue: (track: string) => void;
+  addToQueue: (track: string, addToFront?: boolean) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   updateCurrentIndex: (index: number) => void;
   setCircularMode: (circular: boolean) => void;
+
+  // Shuffle actions
+  toggleShuffle: () => void;
+  setShuffle: (enabled: boolean) => void;
+  getNextShuffledIndex: () => number;
+  getPreviousShuffledIndex: () => number;
+  markTrackAsManuallyAdded: (trackUri: string) => void;
+  regenerateShuffleIndices: () => void;
 
   setPlaybackSource: (
     type: "album" | "playlist" | "artist" | "search" | "none",
@@ -53,10 +67,12 @@ export interface PlayerState {
   }) => void;
 }
 
+const MAX_RECENTLY_PLAYED = 8; // Avoid repeating the last X played tracks
+
 // Create the player store with persistence
 export const usePlayerStore = create<PlayerState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Initial state
       currentTrack: null,
       isPlaying: false,
@@ -69,6 +85,12 @@ export const usePlayerStore = create<PlayerState>()(
       currentQueueIndex: -1,
       isCircular: true,
 
+      // Shuffle state
+      isShuffleEnabled: false,
+      shuffleIndices: [],
+      recentlyPlayedIndices: [],
+      manuallyAddedTracks: new Set<string>(),
+
       sourceType: "none",
       sourceId: "",
 
@@ -79,24 +101,67 @@ export const usePlayerStore = create<PlayerState>()(
       setDuration: (duration) => set({ duration }),
       setVolume: (volume) => set({ volume }),
 
-      setQueueTracks: (tracks, index = 0) =>
+      setQueueTracks: (tracks, index = 0) => {
+        const state = get();
+
+        // Generate initial shuffle indices if shuffle is enabled
+        const shuffleIndices = state.isShuffleEnabled
+          ? generateShuffleIndices(tracks.length)
+          : [];
+
         set({
           queueTracks: tracks,
           currentQueueIndex: index >= 0 && index < tracks.length ? index : 0,
-        }),
+          shuffleIndices,
+          recentlyPlayedIndices: [],
+        });
+      },
 
       setQueueTrackItems: (tracks) => set({ queueTrackItems: tracks }),
 
-      addToQueue: (track) =>
+      addToQueue: (track, addToFront = false) =>
         set((state) => {
           // Don't add if already in queue
           if (state.queueTracks.includes(track)) {
             return state;
           }
 
-          return {
-            queueTracks: [...state.queueTracks, track],
-          };
+          const newTracks = [...state.queueTracks];
+          const newIndices = [...state.shuffleIndices];
+
+          // Add to front or back of queue based on parameter
+          if (addToFront) {
+            // Add right after the current track
+            const insertPosition = state.currentQueueIndex + 1;
+            newTracks.splice(insertPosition, 0, track);
+
+            // Update shuffle indices if needed
+            if (state.isShuffleEnabled && newIndices.length > 0) {
+              // Shift all indices >= insertPosition up by 1
+              for (let i = 0; i < newIndices.length; i++) {
+                if (newIndices[i] >= insertPosition) {
+                  newIndices[i]++;
+                }
+              }
+              // Insert at position right after current in shuffle order
+              newIndices.splice(state.currentQueueIndex + 1, 0, insertPosition);
+            }
+
+            // Mark track as manually added
+            const newManuallyAdded = new Set(state.manuallyAddedTracks);
+            newManuallyAdded.add(track);
+
+            return {
+              queueTracks: newTracks,
+              shuffleIndices: newIndices,
+              manuallyAddedTracks: newManuallyAdded,
+            };
+          } else {
+            // Add to end of queue (original behavior)
+            return {
+              queueTracks: [...state.queueTracks, track],
+            };
+          }
         }),
 
       removeFromQueue: (index) =>
@@ -107,10 +172,31 @@ export const usePlayerStore = create<PlayerState>()(
           }
 
           const newTracks = [...state.queueTracks];
+          const trackToRemove = newTracks[index];
           newTracks.splice(index, 1);
 
           const newTrackItems = [...state.queueTrackItems];
           newTrackItems.splice(index, 1);
+
+          // Update shuffle indices if enabled
+          let newShuffleIndices: number[] = [];
+          if (state.isShuffleEnabled) {
+            newShuffleIndices = [...state.shuffleIndices].filter(
+              (i) => i !== index
+            );
+            // Adjust indices that are greater than the removed index
+            for (let i = 0; i < newShuffleIndices.length; i++) {
+              if (newShuffleIndices[i] > index) {
+                newShuffleIndices[i]--;
+              }
+            }
+          }
+
+          // Remove from manually added tracks if present
+          const newManuallyAdded = new Set(state.manuallyAddedTracks);
+          if (newManuallyAdded.has(trackToRemove)) {
+            newManuallyAdded.delete(trackToRemove);
+          }
 
           // Adjust currentQueueIndex if needed
           let newIndex = state.currentQueueIndex;
@@ -131,6 +217,8 @@ export const usePlayerStore = create<PlayerState>()(
             queueTracks: newTracks,
             queueTrackItems: newTrackItems,
             currentQueueIndex: newTracks.length > 0 ? newIndex : -1,
+            shuffleIndices: newShuffleIndices,
+            manuallyAddedTracks: newManuallyAdded,
           };
         }),
 
@@ -149,6 +237,9 @@ export const usePlayerStore = create<PlayerState>()(
               queueTracks: [currentTrackUri],
               queueTrackItems: currentTrackItem ? [currentTrackItem] : [],
               currentQueueIndex: 0,
+              shuffleIndices: [0],
+              recentlyPlayedIndices: [],
+              manuallyAddedTracks: new Set<string>(),
             };
           }
 
@@ -156,18 +247,210 @@ export const usePlayerStore = create<PlayerState>()(
             queueTracks: [],
             queueTrackItems: [],
             currentQueueIndex: -1,
+            shuffleIndices: [],
+            recentlyPlayedIndices: [],
+            manuallyAddedTracks: new Set<string>(),
           };
         }),
 
       updateCurrentIndex: (index) =>
         set((state) => {
           if (index >= 0 && index < state.queueTracks.length) {
-            return { currentQueueIndex: index };
+            // Add previous index to recently played if valid
+            const newRecentlyPlayed = [...state.recentlyPlayedIndices];
+            if (state.currentQueueIndex >= 0) {
+              newRecentlyPlayed.push(state.currentQueueIndex);
+              // Keep only the most recent tracks
+              while (newRecentlyPlayed.length > MAX_RECENTLY_PLAYED) {
+                newRecentlyPlayed.shift();
+              }
+            }
+            return {
+              currentQueueIndex: index,
+              recentlyPlayedIndices: newRecentlyPlayed,
+            };
           }
           return state;
         }),
 
       setCircularMode: (circular) => set({ isCircular: circular }),
+
+      // Shuffle actions
+      toggleShuffle: () => {
+        const state = get();
+        const newShuffleState = !state.isShuffleEnabled;
+
+        if (newShuffleState) {
+          // Enabling shuffle - generate shuffle indices but keep current track
+          const indices = generateShuffleIndices(state.queueTracks.length);
+
+          // Make sure the current track stays in its position
+          if (state.currentQueueIndex >= 0) {
+            // Find where current track ended up in shuffle and swap it back
+            const shuffledPos = indices.findIndex(
+              (i) => i === state.currentQueueIndex
+            );
+            if (shuffledPos !== -1) {
+              [indices[shuffledPos], indices[state.currentQueueIndex]] = [
+                indices[state.currentQueueIndex],
+                indices[shuffledPos],
+              ];
+            }
+          }
+
+          set({
+            isShuffleEnabled: true,
+            shuffleIndices: indices,
+            recentlyPlayedIndices:
+              state.currentQueueIndex >= 0 ? [state.currentQueueIndex] : [],
+          });
+        } else {
+          // Disabling shuffle
+          set({
+            isShuffleEnabled: false,
+            shuffleIndices: [],
+          });
+        }
+      },
+
+      setShuffle: (enabled) => {
+        if (enabled !== get().isShuffleEnabled) {
+          get().toggleShuffle();
+        }
+      },
+
+      getNextShuffledIndex: () => {
+        const state = get();
+
+        if (!state.isShuffleEnabled || state.queueTracks.length <= 1) {
+          // Regular sequential behavior if shuffle disabled
+          const nextIndex = state.currentQueueIndex + 1;
+          if (nextIndex >= state.queueTracks.length) {
+            return state.isCircular ? 0 : -1;
+          }
+          return nextIndex;
+        }
+
+        // With shuffle enabled, find a suitable next track
+        const recentlyPlayed = new Set(state.recentlyPlayedIndices);
+        const availableIndices: number[] = [];
+
+        // First, prioritize manually added tracks that come right after current position
+        for (
+          let i = state.currentQueueIndex + 1;
+          i < state.queueTracks.length;
+          i++
+        ) {
+          if (
+            state.manuallyAddedTracks.has(state.queueTracks[i]) &&
+            !recentlyPlayed.has(i)
+          ) {
+            return i; // Return manually added track immediately
+          }
+        }
+
+        // Then look through shuffled order, avoiding recently played tracks
+        for (let i = 0; i < state.shuffleIndices.length; i++) {
+          const index = state.shuffleIndices[i];
+          if (index > state.currentQueueIndex && !recentlyPlayed.has(index)) {
+            availableIndices.push(index);
+          }
+        }
+
+        // If nothing found after current index, check from beginning if circular
+        if (availableIndices.length === 0 && state.isCircular) {
+          for (let i = 0; i < state.shuffleIndices.length; i++) {
+            const index = state.shuffleIndices[i];
+            if (index < state.currentQueueIndex && !recentlyPlayed.has(index)) {
+              availableIndices.push(index);
+            }
+          }
+        }
+
+        // If still no tracks available, just pick next in shuffled order
+        if (availableIndices.length === 0) {
+          const currentPosInShuffle = state.shuffleIndices.indexOf(
+            state.currentQueueIndex
+          );
+          if (
+            currentPosInShuffle >= 0 &&
+            currentPosInShuffle < state.shuffleIndices.length - 1
+          ) {
+            return state.shuffleIndices[currentPosInShuffle + 1];
+          } else if (state.isCircular && state.shuffleIndices.length > 0) {
+            return state.shuffleIndices[0];
+          }
+          return -1;
+        }
+
+        // Pick random track from available tracks
+        return availableIndices[
+          Math.floor(Math.random() * availableIndices.length)
+        ];
+      },
+
+      getPreviousShuffledIndex: () => {
+        const state = get();
+
+        if (!state.isShuffleEnabled) {
+          // Regular sequential behavior
+          const prevIndex = state.currentQueueIndex - 1;
+          if (prevIndex < 0) {
+            return state.isCircular ? state.queueTracks.length - 1 : -1;
+          }
+          return prevIndex;
+        }
+
+        // With shuffle, go to previously played track if available
+        if (state.recentlyPlayedIndices.length > 0) {
+          return state.recentlyPlayedIndices[
+            state.recentlyPlayedIndices.length - 1
+          ];
+        }
+
+        // Otherwise, go to previous in shuffled order
+        const currentPosInShuffle = state.shuffleIndices.indexOf(
+          state.currentQueueIndex
+        );
+        if (currentPosInShuffle > 0) {
+          return state.shuffleIndices[currentPosInShuffle - 1];
+        } else if (state.isCircular && state.shuffleIndices.length > 0) {
+          return state.shuffleIndices[state.shuffleIndices.length - 1];
+        }
+
+        return -1;
+      },
+
+      markTrackAsManuallyAdded: (trackUri: string) =>
+        set((state) => {
+          const newManuallyAdded = new Set(state.manuallyAddedTracks);
+          newManuallyAdded.add(trackUri);
+          return { manuallyAddedTracks: newManuallyAdded };
+        }),
+
+      regenerateShuffleIndices: () =>
+        set((state) => {
+          if (!state.isShuffleEnabled || state.queueTracks.length <= 1) {
+            return state;
+          }
+
+          const newIndices = generateShuffleIndices(state.queueTracks.length);
+
+          // Keep current track in its position
+          if (state.currentQueueIndex >= 0) {
+            const shuffledPos = newIndices.findIndex(
+              (i) => i === state.currentQueueIndex
+            );
+            if (shuffledPos !== -1) {
+              [newIndices[shuffledPos], newIndices[state.currentQueueIndex]] = [
+                newIndices[state.currentQueueIndex],
+                newIndices[shuffledPos],
+              ];
+            }
+          }
+
+          return { shuffleIndices: newIndices };
+        }),
 
       setPlaybackSource: (type, id) =>
         set({
@@ -205,9 +488,23 @@ export const usePlayerStore = create<PlayerState>()(
         currentQueueIndex: state.currentQueueIndex,
         volume: state.volume,
         isCircular: state.isCircular,
+        isShuffleEnabled: state.isShuffleEnabled,
         sourceType: state.sourceType,
         sourceId: state.sourceId,
       }),
     }
   )
 );
+
+// Helper function to generate shuffle indices
+function generateShuffleIndices(length: number): number[] {
+  const indices = Array.from({ length }, (_, i) => i);
+
+  // Fisher-Yates shuffle algorithm
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+
+  return indices;
+}

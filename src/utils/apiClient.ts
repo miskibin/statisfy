@@ -158,6 +158,54 @@ export class SpotifyApiClient {
   }
 
   /**
+   * Generic GET request using a complete URL with caching
+   */
+  public async getByUrl<T>(
+    url: string,
+    config?: AxiosRequestConfig,
+    cacheTTL = 0
+  ): Promise<T | null> {
+    const cacheKey = `getByUrl:${url}:${JSON.stringify(config || {})}`;
+
+    // Check cache first if cacheTTL > 0
+    if (cacheTTL > 0) {
+      const cachedItem = this.cache.get(cacheKey);
+      if (cachedItem && Date.now() < cachedItem.expiry) {
+        return cachedItem.data;
+      }
+    }
+
+    try {
+      const response = await axios.get<T>(url, {
+        ...config,
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem(
+            "spotify_access_token"
+          )}`,
+          "Content-Type": "application/json",
+          ...config?.headers,
+        },
+      });
+
+      // Store in cache if cacheTTL > 0
+      if (cacheTTL > 0) {
+        this.cache.set(cacheKey, {
+          data: response.data,
+          expiry: Date.now() + cacheTTL,
+        });
+      }
+
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 204) {
+        return null; // No content
+      }
+      console.error(`API GET Error for ${url}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Generic POST request
    */
   public async post<T>(

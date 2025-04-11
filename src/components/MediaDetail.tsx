@@ -27,6 +27,7 @@ interface MediaDetailProps {
   loadingRef?: (node: HTMLDivElement) => void;
   noScrollContainer?: boolean;
   actionButtons?: React.ReactNode;
+  footer?: React.ReactNode; // Add footer prop
 }
 
 function MediaDetailHeader({
@@ -164,6 +165,7 @@ export function MediaDetail({
   loadingRef,
   noScrollContainer = false,
   actionButtons,
+  footer,
 }: MediaDetailProps) {
   if (loading) {
     return <MediaDetailLoading onBack={onBack} title={title} />;
@@ -203,6 +205,8 @@ export function MediaDetail({
         {hasMore && !loadingMore && loadingRef && (
           <div ref={loadingRef} className="h-8 w-full"></div>
         )}
+
+        {footer}
       </div>
     </>
   );
