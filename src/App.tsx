@@ -9,9 +9,9 @@ import { NewReleases } from "./components/NewReleases";
 import { Artists } from "./components/Artists"; // Import Artists component
 import { ArtistDetail } from "./components/ArtistDetail"; // Import ArtistDetail component
 import { AlbumDetail } from "./components/AlbumDetail"; // Import AlbumDetail component
-import { Queue } from "./components/Queue"; // Import Queue component
 import { listen } from "@tauri-apps/api/event";
 import { Header } from "./components/layout/Header";
+import { Queue } from "./components/Queue";
 
 // Navigation function to update URL without page reload
 export function useNavigate() {

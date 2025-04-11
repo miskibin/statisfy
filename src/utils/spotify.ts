@@ -17,6 +17,7 @@ import {
   SpotifyQueueResponse,
   SpotifySearchResponse,
 } from "./spotify.types";
+import { usePlayerStore } from "@/stores/playerStore";
 import {
   setPlaybackContext,
   getPlaybackContext,
@@ -27,11 +28,13 @@ import {
   addToInternalQueue,
   setInternalQueue,
   removeFromInternalQueue,
-  playNextInQueue,
-  playPreviousInQueue,
+  playNextInQueue as queuePlayNext,
+  playPreviousInQueue as queuePlayPrevious,
   getTracksByUris,
   playTrackWithContext,
   loadTracksIntoQueue,
+  playNextInQueue,
+  playPreviousInQueue,
 } from "./queue";
 
 // Constants
@@ -61,6 +64,7 @@ let currentState: WebPlaybackState | null = null;
 let playerError: string | null = null;
 let progressUpdateInterval: number | null = null;
 let stateObservers: Array<(state: any, error: string | null) => void> = [];
+let transitionInProgress: boolean = false;
 
 interface TrackInfo {
   name: string;
@@ -273,6 +277,48 @@ const convertStateToTrackInfo = (
 // Notify all observers of state changes
 const notifyObservers = () => {
   const trackInfo = currentState ? convertStateToTrackInfo(currentState) : null;
+  
+  // Check if track is about to end and auto-advance to next track
+  // Start transition 1.5 seconds before the end to create a seamless experience
+  if (currentState && 
+      currentState.position >= currentState.duration - 1500 && 
+      !currentState.paused) {
+    // Prevent multiple calls by checking if we're already handling an end
+    if (!transitionInProgress) {
+      transitionInProgress = true;
+      playNextInQueue().finally(() => {
+        // Reset flag after transition completes
+        setTimeout(() => {
+          transitionInProgress = false;
+        }, 1000);
+      });
+    }
+  }
+  
+  // Update Zustand store with latest state
+  if (trackInfo) {
+    const playerStore = usePlayerStore.getState();
+    // Get current track from Spotify state
+    const currentTrackUri = currentState?.track_window?.current_track?.uri;
+    
+    // Update store with current playback state
+    playerStore.syncWithSpotifyState({
+      currentTrack: currentState?.track_window?.current_track ? 
+        currentState.track_window.current_track as any : null,
+      isPlaying: !currentState?.paused,
+      progress: currentState?.position || 0,
+      duration: currentState?.duration || 0,
+    });
+    
+    // Update current queue index if needed
+    if (currentTrackUri) {
+      const trackIndex = playerStore.queueTracks.indexOf(currentTrackUri);
+      if (trackIndex !== -1 && trackIndex !== playerStore.currentQueueIndex) {
+        playerStore.updateCurrentIndex(trackIndex);
+      }
+    }
+  }
+  
   stateObservers.forEach((observer) => observer(trackInfo, playerError));
 };
 
@@ -483,6 +529,37 @@ export const setVolume = async (volumePercent: number): Promise<boolean> => {
     await player.setVolume(volumePercent / 100);
     return true;
   } catch {
+    return false;
+  }
+};
+
+// Function to seek to a specific position in the current track
+export const seekToPosition = async (positionMs: number): Promise<boolean> => {
+  if (!deviceId) {
+    const initialized = await ensureActiveDevice();
+    if (!initialized) return false;
+  }
+  
+  try {
+    const result = await spotifyApi.put("/me/player/seek", null, {
+      params: {
+        position_ms: positionMs,
+        device_id: deviceId
+      }
+    });
+    
+    // Update current state manually for immediate feedback
+    if (currentState) {
+      currentState = {
+        ...currentState,
+        position: positionMs
+      };
+      notifyObservers();
+    }
+    
+    return result !== null;
+  } catch (error) {
+    console.error("Error seeking to position:", error);
     return false;
   }
 };

@@ -1,98 +1,106 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
-  getCurrentTrackInfo,
   pausePlayback,
   resumePlayback,
   setVolume,
-  subscribeToPlayerState,
-  unsubscribeFromPlayerState,
   playNextInQueue,
   playPreviousInQueue,
+  seekToPosition,
+  getCurrentTrackInfo,
+  initializePlayer,
 } from "@/utils/spotify";
-import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { useNavigate } from "@/App";
-
-interface TrackInfo {
-  name: string;
-  artists: { name: string; id: string }[];
-  albumArt: string;
-  isPlaying: boolean;
-  duration: number;
-  progress: number;
-}
+import { usePlayerStore } from "@/stores/playerStore";
 
 export function NowPlayingBar() {
-  const [trackInfo, setTrackInfo] = useState<TrackInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [volume, setVolumeState] = useState(50);
-  const [error, setError] = useState<string | null>(null);
+  const [previousVolume, setPreviousVolume] = useState(50);
   const navigate = useNavigate();
 
-  // Initialize player and set up state subscribers
+  // Get state from our Zustand store
+  const {
+    currentTrack,
+    isPlaying,
+    progress,
+    duration,
+    volume,
+    setVolume: updateStoreVolume,
+    syncWithSpotifyState,
+  } = usePlayerStore();
+
+  // Initialize player and load current track info when component mounts
   useEffect(() => {
-    let isMounted = true;
-
-    const handlePlayerStateChange = (
-      state: TrackInfo | null,
-      playerError: string | null
-    ) => {
-      if (!isMounted) return;
-
-      if (state) {
-        setTrackInfo(state);
-        setError(null);
-      } else if (playerError) {
-        setError(playerError);
-      } else {
-        setTrackInfo(null);
+    const initPlayer = async () => {
+      // Initialize the player
+      await initializePlayer();
+      
+      // Get current track info if available
+      const trackInfo = await getCurrentTrackInfo();
+      
+      if (trackInfo) {
+        // Update store with current track info
+        syncWithSpotifyState({
+          isPlaying: trackInfo.isPlaying,
+          progress: trackInfo.progress,
+          duration: trackInfo.duration,
+          volume: trackInfo.deviceVolume || volume,
+        });
       }
-
-      setLoading(false);
     };
-
-    // Subscribe to player state changes
-    subscribeToPlayerState(handlePlayerStateChange);
-
-    // Get initial volume
-    getCurrentTrackInfo().then((info) => {
-      if (isMounted && info?.deviceVolume) {
-        setVolumeState(info.deviceVolume);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribeFromPlayerState(handlePlayerStateChange);
-    };
+    
+    initPlayer();
   }, []);
 
+  const hasTrack = currentTrack !== null;
+  const loading = !hasTrack && duration === 0;
+  const error = !hasTrack && !loading ? "No track playing" : null;
+
+  // Handlers for playback control
   const handlePlayPause = async () => {
-    if (!trackInfo) return;
-
-    if (trackInfo.isPlaying) {
-      await pausePlayback();
-    } else {
-      await resumePlayback();
-    }
-
-    // Optimistic UI update
-    setTrackInfo({
-      ...trackInfo,
-      isPlaying: !trackInfo.isPlaying,
-    });
+    if (!hasTrack) return;
+    await (isPlaying ? pausePlayback() : resumePlayback());
   };
 
+  // Volume control functions
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
-    setVolumeState(newVolume);
+    updateStoreVolume(newVolume);
+    setVolume(newVolume);
+
+    if (newVolume > 0) setPreviousVolume(newVolume);
+  };
+
+  // Toggle mute on volume icon click
+  const handleVolumeButtonClick = () => {
+    const newVolume =
+      volume === 0 ? (previousVolume > 0 ? previousVolume : 50) : 0;
+
+    if (volume > 0) setPreviousVolume(volume);
+    updateStoreVolume(newVolume);
     setVolume(newVolume);
   };
 
-  const navigateToArtist = (artistId: string) => {
-    navigate(`/artists/${artistId}`);
+  // Seek control
+  const handleSeek = (value: number[]) => {
+    if (!hasTrack || !duration) return;
+
+    const seekPositionMs = Math.floor((value[0] / 100) * duration);
+    usePlayerStore.getState().setProgress(seekPositionMs);
+    seekToPosition(seekPositionMs);
   };
+
+  // Navigation and track controls
+  const navigateToArtist = (artistId: string) =>
+    navigate(`/artists/${artistId}`);
 
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
@@ -100,60 +108,44 @@ export function NowPlayingBar() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  // Handle Next/Previous buttons
-  const handleNext = useCallback(async () => {
-    // Use our internal queue system instead of Spotify's skipToNext
-    const success = await playNextInQueue();
-    if (success) {
-      // Audio feedback will be handled by the player state change
-    }
-  }, []);
-
-  const handlePrevious = useCallback(async () => {
-    // Use our internal queue system instead of Spotify's skipToPrevious
-    const success = await playPreviousInQueue();
-    if (success) {
-      // Audio feedback will be handled by the player state change
-    }
-  }, []);
-
-  // Simplified rendering logic
-  if (loading || error || !trackInfo) {
+  if (loading || error) {
     return (
       <div className="h-20 border-t flex items-center justify-center">
         {loading ? (
           <div className="animate-pulse h-3 w-24 bg-gray-300 rounded"></div>
-        ) : error ? (
-          <span className="text-sm text-muted-foreground">{error}</span>
         ) : (
           <span className="text-sm text-muted-foreground">
-            No track playing
+            {error || "No track playing"}
           </span>
         )}
       </div>
     );
   }
 
-  const progress = (trackInfo.progress / trackInfo.duration) * 100;
+  const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
+  const albumArt = currentTrack?.album?.images?.[0]?.url;
+  const trackName = currentTrack?.name || "Unknown Track";
+  const artists = currentTrack?.artists || [];
+  const VolumeIcon = volume === 0 ? VolumeX : Volume2;
 
   return (
     <div className="h-20 border-t px-4 py-2 bg-background flex items-center gap-4">
       {/* Track info */}
       <div className="flex gap-3 w-1/3">
-        {trackInfo.albumArt && (
+        {albumArt && (
           <div className="flex-shrink-0 w-14 h-14 rounded overflow-hidden">
             <img
-              src={trackInfo.albumArt}
-              alt={`${trackInfo.name} album art`}
+              src={albumArt}
+              alt={`${trackName} album art`}
               className="w-full h-full object-cover"
             />
           </div>
         )}
 
         <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <h3 className="font-medium text-sm truncate">{trackInfo.name}</h3>
+          <h3 className="font-medium text-sm truncate">{trackName}</h3>
           <p className="text-muted-foreground text-xs truncate">
-            {trackInfo.artists.map((artist, index) => (
+            {artists.map((artist, index) => (
               <span key={artist.id}>
                 {index > 0 && ", "}
                 <span
@@ -177,7 +169,7 @@ export function NowPlayingBar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={handlePrevious}
+            onClick={playPreviousInQueue}
             className="h-8 w-8"
           >
             <SkipBack className="h-4 w-4" />
@@ -188,7 +180,7 @@ export function NowPlayingBar() {
             size="icon"
             className="rounded-full h-9 w-9"
           >
-            {trackInfo.isPlaying ? (
+            {isPlaying ? (
               <Pause className="h-4 w-4" />
             ) : (
               <Play className="h-4 w-4 ml-0.5" />
@@ -197,32 +189,38 @@ export function NowPlayingBar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleNext}
+            onClick={playNextInQueue}
             className="h-8 w-8"
           >
             <SkipForward className="h-4 w-4" />
           </Button>
         </div>
-
         <div className="flex items-center w-full gap-2 mt-1">
           <span className="text-xs text-muted-foreground">
-            {formatTime(trackInfo.progress)}
+            {formatTime(progress)}
           </span>
           <Slider
-            value={[progress]}
+            value={[progressPercent]}
             max={100}
-            className="flex-1 cursor-default"
-            disabled
+            className="flex-1"
+            onValueChange={handleSeek}
           />
           <span className="text-xs text-muted-foreground">
-            {formatTime(trackInfo.duration)}
+            {formatTime(duration)}
           </span>
         </div>
       </div>
 
-      {/* Volume */}
+      {/* Volume - fixed layout issue */}
       <div className="flex items-center gap-2 w-1/3 justify-end">
-        <Volume2 className="h-3 w-3 text-muted-foreground mr-1" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 p-0"
+          onClick={handleVolumeButtonClick}
+        >
+          <VolumeIcon className="h-3 w-3 text-muted-foreground" />
+        </Button>
         <Slider
           value={[volume]}
           max={100}
