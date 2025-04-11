@@ -9,7 +9,7 @@ interface MediaDetailHeaderProps {
   name: string;
   primaryInfo: ReactNode;
   secondaryInfo: ReactNode;
-  onPlay: () => Promise<void>;
+  onPlay: () => Promise<boolean> | Promise<void>; // Updated to accept both return types
   onBack: () => void;
   isPlaying?: boolean;
   compact?: boolean;

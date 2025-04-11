@@ -28,13 +28,11 @@ import {
   addToInternalQueue,
   setInternalQueue,
   removeFromInternalQueue,
-  playNextInQueue as queuePlayNext,
-  playPreviousInQueue as queuePlayPrevious,
+  playNextInQueue,
+  playPreviousInQueue,
   getTracksByUris,
   playTrackWithContext,
   loadTracksIntoQueue,
-  playNextInQueue,
-  playPreviousInQueue,
 } from "./queue";
 
 // Constants

@@ -75,7 +75,10 @@ export function Queue() {
     imageUrl: track.album?.images?.[0]?.url,
     isCurrentTrack: index === currentQueueIndex,
     isPlaying: isPlaying && index === currentQueueIndex,
-    onPlay: () => handlePlay(track.uri),
+    onPlay: () => {
+      handlePlay(track.uri);
+      return Promise.resolve();
+    },
     albumId: track.album?.id,
     albumName: track.album?.name,
     onArtistClick: navigateToArtist,
@@ -112,7 +115,10 @@ export function Queue() {
           </div>
         ),
         secondaryInfo: <div className="mb-4"></div>,
-        onPlay: handlePlayPause,
+        onPlay: async () => {
+          await handlePlayPause();
+          return true;
+        },
         onBack: handleBack,
         isPlaying,
       }
@@ -128,6 +134,7 @@ export function Queue() {
         secondaryInfo: <div className="mb-4"></div>,
         onBack: handleBack,
         isPlaying: false,
+        onPlay: async () => Promise.resolve(false),
       };
 
   const clearQueueButton = queueTrackItems.length > 1 && (

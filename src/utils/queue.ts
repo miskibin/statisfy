@@ -168,14 +168,14 @@ export const loadTracksIntoQueue = async (
     let trackUris: string[] = [];
     const endpoint = sourceType === "playlist" ? `/playlists/${sourceId}` : `/albums/${sourceId}`;
     
-    const data = await spotifyApi.get(endpoint);
+    const data: any = await spotifyApi.get(endpoint);
     
     if (sourceType === "playlist" && data?.tracks?.items) {
       trackUris = data.tracks.items
-        .filter(item => item?.track)
-        .map(item => item.track.uri);
+        .filter((item: any) => item?.track)
+        .map((item: any) => item.track.uri);
     } else if (sourceType === "album" && data?.tracks?.items) {
-      trackUris = data.tracks.items.map(track => track.uri);
+      trackUris = data.tracks.items.map((track: any) => track.uri);
     }
 
     if (trackUris.length > 0) {
