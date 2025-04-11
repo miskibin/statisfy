@@ -213,8 +213,33 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
     if (!playlist?.uri) return;
 
     if (isLikedSongs && tracks.length > 0) {
-      // For liked songs, get all track URIs and set up playback
-      const trackUris = tracks
+      // For liked songs, ensure we load all tracks for proper shuffling
+      let allTracks = tracks;
+
+      // If we haven't loaded all tracks yet, load them now
+      if (tracksTotal > tracks.length && hasMoreTracks) {
+        setLoading(true);
+        try {
+          let currentOffset = tracksOffset;
+          while (currentOffset < tracksTotal) {
+            const moreResult = await getLikedSongs(50, currentOffset);
+            if (!moreResult?.items?.length) break;
+
+            allTracks = [...allTracks, ...moreResult.items];
+            currentOffset += moreResult.items.length;
+
+            // Break if we hit the end
+            if (!moreResult.next) break;
+          }
+        } catch (err) {
+          console.error("Error loading all liked songs:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Get all track URIs
+      const trackUris = allTracks
         .map((item) => {
           if ("track" in item && item.track) {
             return item.track.uri;
@@ -226,7 +251,7 @@ export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
       setPlaybackContext("playlist", "liked-songs", trackUris, trackUris[0]);
       await playTrack(trackUris[0]);
     } else {
-      // For regular playlists
+      // For regular playlists, use the enhanced loadTracksIntoQueue function that loads all tracks
       await playPlaylist(playlist.uri);
     }
   };

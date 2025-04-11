@@ -1,4 +1,4 @@
-import { Clock, Image, Pause, Play, Plus } from "lucide-react";
+import { Check, Clock, Image, Pause, Play, Plus } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Tooltip,
@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { addTrackToQueue } from "@/utils/queue";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePlayerStore } from "@/stores/playerStore";
 
 export interface TrackItemProps {
   id: string;
@@ -55,7 +56,7 @@ function TrackItem({
   isCurrentTrack,
   isPlaying,
   isRecentlyPlayed,
-  isManuallyAdded,
+  isManuallyAdded: propIsManuallyAdded, // Rename to avoid conflict with store check
   onArtistClick,
   albumId,
   albumName,
@@ -64,31 +65,64 @@ function TrackItem({
 }: TrackItemProps) {
   // Track when this item was added to queue for visual feedback
   const [justAddedToQueue, setJustAddedToQueue] = useState(false);
+  const [isAddingToQueue, setIsAddingToQueue] = useState(false);
+  const [isInQueue, setIsInQueue] = useState(propIsManuallyAdded || false);
+
+  // Check if this track is in the manually added tracks set
+  useEffect(() => {
+    const checkIfManuallyAdded = () => {
+      const manuallyAdded = usePlayerStore.getState().manuallyAddedTracks;
+      setIsInQueue(manuallyAdded.has(uri) || propIsManuallyAdded || false);
+    };
+
+    // Check immediately and subscribe to store changes
+    checkIfManuallyAdded();
+
+    // Subscribe to store changes
+    const unsubscribe = usePlayerStore.subscribe((state) => {
+      if (state.manuallyAddedTracks) {
+        checkIfManuallyAdded();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [uri, propIsManuallyAdded]);
 
   // Add a track to the queue (next in line)
   const handleAddToQueue = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const success = await addTrackToQueue(uri, true);
 
-    if (success) {
-      // Show toast notification
-      toast.success(`Added "${name}" to queue`);
+    if (justAddedToQueue || isAddingToQueue || isInQueue) return;
 
-      // Show visual feedback temporarily
-      setJustAddedToQueue(true);
-      setTimeout(() => setJustAddedToQueue(false), 1500);
-    } else {
+    setIsAddingToQueue(true);
+    try {
+      const success = await addTrackToQueue(uri, true);
+
+      if (success) {
+        // Show toast notification
+        toast.success(`Added "${name}" to queue`);
+
+        // Show visual feedback temporarily
+        setJustAddedToQueue(true);
+        setIsInQueue(true);
+        setTimeout(() => setJustAddedToQueue(false), 1000);
+      } else {
+        toast.error("Failed to add to queue");
+      }
+    } catch (error) {
       toast.error("Failed to add to queue");
+      console.error("Error adding track to queue:", error);
+    } finally {
+      setIsAddingToQueue(false);
     }
   };
 
   return (
     <div
-      className={`grid grid-cols-[auto_2fr_1.5fr_auto] gap-4 px-4 py-2 hover:bg-muted/30 rounded-md group cursor-pointer ${
-        isCurrentTrack ? "bg-muted/50" : ""
-      } ${isRecentlyPlayed ? "opacity-60" : ""} ${
-        isManuallyAdded ? "border-l-2 border-primary" : ""
-      } ${justAddedToQueue ? "bg-primary/10 transition-colors" : ""}
+      className={`grid grid-cols-[auto_2fr_1.5fr_auto] gap-4 px-4 py-2 rounded-md group cursor-pointer transition-colors duration-200
+        ${isCurrentTrack ? "bg-muted/50" : "hover:bg-muted/30"} 
+        ${isRecentlyPlayed ? "opacity-60" : ""} 
+        ${isInQueue ? "border-l-2 border-primary" : ""}
       `}
       onClick={() => onPlay(uri)}
     >
@@ -124,13 +158,14 @@ function TrackItem({
           <div
             className={`truncate ${
               isCurrentTrack ? "font-semibold" : "font-medium"
-            } ${
-              isManuallyAdded
-                ? "after:content-['•'] after:ml-1 after:text-primary"
-                : ""
             }`}
           >
             {name}
+            {isCurrentTrack && (
+              <span className="ml-1 text-primary font-bold" title="Now Playing">
+                •
+              </span>
+            )}
           </div>
 
           {/* Add to queue button */}
@@ -141,19 +176,25 @@ function TrackItem({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className={`h-6 w-6 p-0 ${
-                      justAddedToQueue ? "text-primary animate-pulse" : ""
-                    }`}
+                    className="h-6 w-6 p-0"
                     onClick={handleAddToQueue}
-                    disabled={justAddedToQueue}
+                    disabled={isInQueue || isAddingToQueue}
                   >
-                    <Plus className="h-3 w-3" />
+                    {isAddingToQueue ? (
+                      <span className="animate-spin">•</span>
+                    ) : justAddedToQueue || isInQueue ? (
+                      <Check className="h-3 w-3 text-primary" />
+                    ) : (
+                      <Plus className="h-3 w-3" />
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>
-                    {justAddedToQueue
-                      ? "Added to queue"
+                    {isInQueue
+                      ? "Already in queue"
+                      : isAddingToQueue
+                      ? "Adding to queue..."
                       : "Add to queue (next)"}
                   </p>
                 </TooltipContent>

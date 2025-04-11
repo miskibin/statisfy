@@ -630,17 +630,66 @@ export const playTrack = async (uri: string) => {
 export const playLikedSongs = async (): Promise<boolean> => {
   try {
     // Get first batch of liked songs
-    const likedSongs = await getLikedSongs(50, 0);
+    const firstBatch = await getLikedSongs(50, 0);
 
-    if (!likedSongs || !likedSongs.items || likedSongs.items.length === 0) {
+    if (!firstBatch || !firstBatch.items || firstBatch.items.length === 0) {
       return false;
     }
 
-    // Extract URIs from liked songs
-    const trackUris = likedSongs.items.map((item) => item.track.uri);
+    // Extract track URIs from the first batch
+    let trackUris = firstBatch.items.map((item) => item.track.uri);
+
+    // If there are more tracks, load them all (up to a reasonable limit)
+    const totalTracks = firstBatch.total;
+    let loadedTracks = trackUris.length;
+    const maxTracks = 10000; // High limit to ensure we get most/all tracks
+
+    console.log(`Loading ${totalTracks} liked songs`);
+
+    // Load the remaining tracks in batches of 50
+    while (
+      loadedTracks < totalTracks &&
+      loadedTracks < maxTracks &&
+      firstBatch.next
+    ) {
+      try {
+        console.log(
+          `Loaded ${loadedTracks}/${totalTracks} liked songs, fetching more...`
+        );
+        const nextBatch = await getLikedSongs(50, loadedTracks);
+        if (!nextBatch || !nextBatch.items || nextBatch.items.length === 0) {
+          break;
+        }
+
+        const nextUris = nextBatch.items.map((item) => item.track.uri);
+        trackUris = [...trackUris, ...nextUris];
+        loadedTracks += nextBatch.items.length;
+
+        if (!nextBatch.next) {
+          break;
+        }
+      } catch (err) {
+        console.error("Error loading more liked songs:", err);
+        break;
+      }
+    }
+
+    console.log(
+      `Finished loading ${trackUris.length}/${totalTracks} liked songs`
+    );
 
     // Use the store to set up queue
     const playerStore = usePlayerStore.getState();
+
+    // If shuffle is enabled, randomize the tracks
+    if (playerStore.isShuffleEnabled) {
+      // Fisher-Yates shuffle for the track URIs
+      for (let i = trackUris.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [trackUris[i], trackUris[j]] = [trackUris[j], trackUris[i]];
+      }
+    }
+
     playerStore.setPlaybackSource("playlist", "liked-songs");
     playerStore.setQueueTracks(trackUris, 0);
 

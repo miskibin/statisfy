@@ -19,6 +19,7 @@ import {
   Volume2,
   VolumeX,
   Shuffle,
+  Loader2,
 } from "lucide-react";
 import { useNavigate } from "@/App";
 import { usePlayerStore } from "@/stores/playerStore";
@@ -26,6 +27,7 @@ import { toggleShuffleMode } from "@/utils/queue";
 
 export function NowPlayingBar() {
   const [previousVolume, setPreviousVolume] = useState(50);
+  const [isPlayerInitializing, setIsPlayerInitializing] = useState(true);
   const navigate = useNavigate();
 
   // Get all needed state from playerStore
@@ -35,7 +37,8 @@ export function NowPlayingBar() {
     progress,
     duration,
     volume,
-    isShuffleEnabled, // Add access to shuffle state
+    isShuffleEnabled,
+    isQueueReady,
     setVolume: updateStoreVolume,
     syncWithSpotifyState,
   } = usePlayerStore();
@@ -43,16 +46,23 @@ export function NowPlayingBar() {
   // Initialize player once when component mounts
   useEffect(() => {
     const initPlayer = async () => {
-      await initializePlayer();
-      const trackInfo = await getCurrentTrackInfo();
+      setIsPlayerInitializing(true);
+      try {
+        await initializePlayer();
+        const trackInfo = await getCurrentTrackInfo();
 
-      if (trackInfo) {
-        syncWithSpotifyState({
-          isPlaying: trackInfo.isPlaying,
-          progress: trackInfo.progress,
-          duration: trackInfo.duration,
-          volume: trackInfo.deviceVolume || volume,
-        });
+        if (trackInfo) {
+          syncWithSpotifyState({
+            isPlaying: trackInfo.isPlaying,
+            progress: trackInfo.progress,
+            duration: trackInfo.duration,
+            volume: trackInfo.deviceVolume || volume,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to initialize player:", error);
+      } finally {
+        setIsPlayerInitializing(false);
       }
     };
 
@@ -61,8 +71,9 @@ export function NowPlayingBar() {
 
   // Derived state
   const hasTrack = currentTrack !== null;
-  const loading = !hasTrack && duration === 0;
-  const error = !hasTrack && !loading ? "No track playing" : null;
+  const queueReady = isQueueReady();
+  const loading = isPlayerInitializing || (!hasTrack && !queueReady);
+  const error = !loading && !hasTrack ? "No track playing" : null;
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
   const VolumeIcon = volume === 0 ? VolumeX : Volume2;
 
@@ -73,6 +84,23 @@ export function NowPlayingBar() {
   // Toggle shuffle mode
   const handleToggleShuffle = () => {
     toggleShuffleMode();
+  };
+
+  // Handle next/previous track
+  const handleNextTrack = async () => {
+    try {
+      await playNextInQueue();
+    } catch (error) {
+      console.error("Failed to play next track:", error);
+    }
+  };
+
+  const handlePreviousTrack = async () => {
+    try {
+      await playPreviousInQueue();
+    } catch (error) {
+      console.error("Failed to play previous track:", error);
+    }
   };
 
   // Volume control
@@ -108,12 +136,17 @@ export function NowPlayingBar() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  // Empty state
+  // Loading or empty state
   if (loading || error) {
     return (
-      <div className="h-20 border-t flex items-center justify-center">
+      <div className="h-20 border-t flex items-center justify-center bg-background">
         {loading ? (
-          <div className="animate-pulse h-3 w-24 bg-gray-300 rounded"></div>
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            <span className="text-xs text-muted-foreground">
+              {isPlayerInitializing ? "Initializing player..." : "Loading..."}
+            </span>
+          </div>
         ) : (
           <span className="text-sm text-muted-foreground">
             {error || "No track playing"}
@@ -167,7 +200,7 @@ export function NowPlayingBar() {
           <Button
             size="icon"
             onClick={handleToggleShuffle}
-            variant={`${isShuffleEnabled ? "default" : "ghost"}`}
+            variant={isShuffleEnabled ? "default" : "ghost"}
             className={`h-8 w-8 ${isShuffleEnabled ? "bg-primary" : ""}`}
             title={isShuffleEnabled ? "Disable shuffle" : "Enable shuffle"}
           >
@@ -177,8 +210,9 @@ export function NowPlayingBar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={playPreviousInQueue}
+            onClick={handlePreviousTrack}
             className="h-8 w-8"
+            disabled={!queueReady}
           >
             <SkipBack className="h-4 w-4" />
           </Button>
@@ -187,6 +221,7 @@ export function NowPlayingBar() {
             variant="default"
             size="icon"
             className="rounded-full h-9 w-9"
+            disabled={!hasTrack}
           >
             {isPlaying ? (
               <Pause className="h-4 w-4" />
@@ -197,8 +232,9 @@ export function NowPlayingBar() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={playNextInQueue}
+            onClick={handleNextTrack}
             className="h-8 w-8"
+            disabled={!queueReady}
           >
             <SkipForward className="h-4 w-4" />
           </Button>

@@ -76,8 +76,18 @@ export const playNextInQueue = async (): Promise<boolean> => {
   if (nextIndex === -1) return false;
 
   try {
+    const nextTrackUri = queueTracks[nextIndex];
     store.updateCurrentIndex(nextIndex);
-    return await playTrack(queueTracks[nextIndex]);
+
+    // Unmark the track from manually added once it's played
+    const isManuallyAdded = store.manuallyAddedTracks.has(nextTrackUri);
+    if (isManuallyAdded) {
+      const newManuallyAdded = new Set(store.manuallyAddedTracks);
+      // Use the proper method to update the manually added tracks
+      usePlayerStore.setState({ manuallyAddedTracks: newManuallyAdded });
+    }
+
+    return await playTrack(nextTrackUri);
   } catch (error) {
     console.error("Error playing next track:", error);
     return false;
@@ -163,6 +173,14 @@ export const playTrackWithContext = async (uri: string) => {
   // Update queue to start from this track
   store.updateCurrentIndex(trackIndex);
 
+  // If the track was manually added, unmark it when played directly
+  const isManuallyAdded = store.manuallyAddedTracks.has(uri);
+  if (isManuallyAdded) {
+    const newManuallyAdded = new Set(store.manuallyAddedTracks);
+    // Use the proper method to update the manually added tracks
+    usePlayerStore.setState({ manuallyAddedTracks: newManuallyAdded });
+  }
+
   // Play the selected track
   const success = await playTrack(uri);
   store.setIsPlaying(success);
@@ -173,7 +191,7 @@ export const playTrackWithContext = async (uri: string) => {
 export const loadTracksIntoQueue = async (
   sourceType: "album" | "playlist",
   sourceId: string,
-  maxTracks = 1000
+  maxTracks = 10000 // Increased from 1000 to 10000 to load more tracks
 ): Promise<boolean> => {
   try {
     let trackUris: string[] = [];
@@ -193,7 +211,20 @@ export const loadTracksIntoQueue = async (
 
       // Fetch more tracks if available
       let nextUrl = data.tracks.next;
-      while (nextUrl && trackUris.length < maxTracks) {
+      const totalTracks = data.tracks.total;
+
+      console.log(`Loading playlist with ${totalTracks} total tracks`);
+
+      // Continue loading all tracks
+      while (
+        nextUrl &&
+        trackUris.length < totalTracks &&
+        trackUris.length < maxTracks
+      ) {
+        console.log(
+          `Loaded ${trackUris.length}/${totalTracks} tracks, fetching more...`
+        );
+
         const moreData: any = await spotifyApi.getByUrl(nextUrl);
         if (moreData?.items) {
           const moreTracks = moreData.items
@@ -205,13 +236,22 @@ export const loadTracksIntoQueue = async (
           break;
         }
       }
+
+      console.log(`Finished loading ${trackUris.length}/${totalTracks} tracks`);
     } else if (sourceType === "album" && data?.tracks?.items) {
       // Get album tracks
       trackUris = data.tracks.items.map((track: any) => track.uri);
 
       // Fetch more tracks if available
       let nextUrl = data.tracks.next;
-      while (nextUrl && trackUris.length < maxTracks) {
+      const totalTracks = data.tracks.total;
+
+      // Continue loading all tracks
+      while (
+        nextUrl &&
+        trackUris.length < totalTracks &&
+        trackUris.length < maxTracks
+      ) {
         const moreData: { items?: any[]; next?: string } =
           (await spotifyApi.getByUrl(nextUrl)) ?? {};
         if (moreData?.items) {
@@ -224,11 +264,19 @@ export const loadTracksIntoQueue = async (
       }
     }
 
-    // Ensure we stay within the maxTracks limit
-    trackUris = trackUris.slice(0, maxTracks);
-
+    // Ensure we have tracks loaded
     if (trackUris.length > 0) {
       const store = usePlayerStore.getState();
+
+      // If shuffle is enabled, we'll randomize the tracks before setting the queue
+      if (store.isShuffleEnabled) {
+        // Fisher-Yates shuffle for the track URIs
+        for (let i = trackUris.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [trackUris[i], trackUris[j]] = [trackUris[j], trackUris[i]];
+        }
+      }
+
       store.setPlaybackSource(sourceType, sourceId);
       store.setQueueTracks(trackUris, 0);
 

@@ -21,6 +21,7 @@ export interface PlayerState {
   shuffleIndices: number[]; // Maps original indices to shuffled order
   recentlyPlayedIndices: number[]; // Tracks recently played to avoid repeating
   manuallyAddedTracks: Set<string>; // Tracks manually added by user
+  pendingManuallyAddedIndices: number[]; // Indices of tracks that were manually added and should be played next
 
   // Context info (album, playlist, etc)
   sourceType: "album" | "playlist" | "artist" | "search" | "none";
@@ -65,6 +66,9 @@ export interface PlayerState {
     queueTrackItems?: SpotifyTrackItem[];
     currentQueueIndex?: number;
   }) => void;
+
+  // Helper to check if queue is loaded and ready
+  isQueueReady: () => boolean;
 }
 
 const MAX_RECENTLY_PLAYED = 8; // Avoid repeating the last X played tracks
@@ -90,6 +94,7 @@ export const usePlayerStore = create<PlayerState>()(
       shuffleIndices: [],
       recentlyPlayedIndices: [],
       manuallyAddedTracks: new Set<string>(),
+      pendingManuallyAddedIndices: [],
 
       sourceType: "none",
       sourceId: "",
@@ -114,6 +119,7 @@ export const usePlayerStore = create<PlayerState>()(
           currentQueueIndex: index >= 0 && index < tracks.length ? index : 0,
           shuffleIndices,
           recentlyPlayedIndices: [],
+          pendingManuallyAddedIndices: [],
         });
       },
 
@@ -128,12 +134,16 @@ export const usePlayerStore = create<PlayerState>()(
 
           const newTracks = [...state.queueTracks];
           const newIndices = [...state.shuffleIndices];
+          let pendingIndices = [...state.pendingManuallyAddedIndices];
 
           // Add to front or back of queue based on parameter
           if (addToFront) {
             // Add right after the current track
             const insertPosition = state.currentQueueIndex + 1;
             newTracks.splice(insertPosition, 0, track);
+
+            // Add to pending manually added tracks
+            pendingIndices.push(insertPosition);
 
             // Update shuffle indices if needed
             if (state.isShuffleEnabled && newIndices.length > 0) {
@@ -155,6 +165,7 @@ export const usePlayerStore = create<PlayerState>()(
               queueTracks: newTracks,
               shuffleIndices: newIndices,
               manuallyAddedTracks: newManuallyAdded,
+              pendingManuallyAddedIndices: pendingIndices,
             };
           } else {
             // Add to end of queue (original behavior)
@@ -198,6 +209,11 @@ export const usePlayerStore = create<PlayerState>()(
             newManuallyAdded.delete(trackToRemove);
           }
 
+          // Update pending manually added indices
+          let newPendingIndices = state.pendingManuallyAddedIndices
+            .filter((i) => i !== index)
+            .map((i) => (i > index ? i - 1 : i));
+
           // Adjust currentQueueIndex if needed
           let newIndex = state.currentQueueIndex;
 
@@ -219,6 +235,7 @@ export const usePlayerStore = create<PlayerState>()(
             currentQueueIndex: newTracks.length > 0 ? newIndex : -1,
             shuffleIndices: newShuffleIndices,
             manuallyAddedTracks: newManuallyAdded,
+            pendingManuallyAddedIndices: newPendingIndices,
           };
         }),
 
@@ -239,6 +256,7 @@ export const usePlayerStore = create<PlayerState>()(
               currentQueueIndex: 0,
               shuffleIndices: [0],
               recentlyPlayedIndices: [],
+              pendingManuallyAddedIndices: [],
               manuallyAddedTracks: new Set<string>(),
             };
           }
@@ -249,6 +267,7 @@ export const usePlayerStore = create<PlayerState>()(
             currentQueueIndex: -1,
             shuffleIndices: [],
             recentlyPlayedIndices: [],
+            pendingManuallyAddedIndices: [],
             manuallyAddedTracks: new Set<string>(),
           };
         }),
@@ -265,9 +284,16 @@ export const usePlayerStore = create<PlayerState>()(
                 newRecentlyPlayed.shift();
               }
             }
+
+            // Remove this track from pending manually added if present
+            const newPendingIndices = state.pendingManuallyAddedIndices.filter(
+              (i) => i !== index
+            );
+
             return {
               currentQueueIndex: index,
               recentlyPlayedIndices: newRecentlyPlayed,
+              pendingManuallyAddedIndices: newPendingIndices,
             };
           }
           return state;
@@ -329,6 +355,12 @@ export const usePlayerStore = create<PlayerState>()(
             return state.isCircular ? 0 : -1;
           }
           return nextIndex;
+        }
+
+        // Check if there are any pending manually added tracks first
+        if (state.pendingManuallyAddedIndices.length > 0) {
+          // Play the first pending manually added track
+          return state.pendingManuallyAddedIndices[0];
         }
 
         // With shuffle enabled, find a suitable next track
@@ -425,6 +457,24 @@ export const usePlayerStore = create<PlayerState>()(
         set((state) => {
           const newManuallyAdded = new Set(state.manuallyAddedTracks);
           newManuallyAdded.add(trackUri);
+
+          // Find the index of this track in the queue
+          const trackIndex = state.queueTracks.indexOf(trackUri);
+          if (trackIndex > -1 && trackIndex !== state.currentQueueIndex) {
+            // Add to pending manually added indices if not already there
+            if (!state.pendingManuallyAddedIndices.includes(trackIndex)) {
+              // Add to the end of the pending indices array to maintain order
+              const newPendingIndices = [
+                ...state.pendingManuallyAddedIndices,
+                trackIndex,
+              ];
+              return {
+                manuallyAddedTracks: newManuallyAdded,
+                pendingManuallyAddedIndices: newPendingIndices,
+              };
+            }
+          }
+
           return { manuallyAddedTracks: newManuallyAdded };
         }),
 
@@ -478,6 +528,12 @@ export const usePlayerStore = create<PlayerState>()(
               ? data.currentQueueIndex
               : state.currentQueueIndex,
         })),
+
+      // Helper to check if queue is loaded and ready
+      isQueueReady: () => {
+        const state = get();
+        return state.queueTracks.length > 0 && state.currentQueueIndex >= 0;
+      },
     }),
     {
       name: "player-storage", // name of the item in local storage
@@ -491,7 +547,19 @@ export const usePlayerStore = create<PlayerState>()(
         isShuffleEnabled: state.isShuffleEnabled,
         sourceType: state.sourceType,
         sourceId: state.sourceId,
+        manuallyAddedTracks: Array.from(state.manuallyAddedTracks),
       }),
+      onRehydrateStorage: () => (state) => {
+        // Convert manuallyAddedTracks back to Set after rehydrating
+        if (state && Array.isArray(state.manuallyAddedTracks)) {
+          state.manuallyAddedTracks = new Set(state.manuallyAddedTracks);
+        } else {
+          state.manuallyAddedTracks = new Set();
+        }
+
+        // Initialize pendingManuallyAddedIndices
+        state.pendingManuallyAddedIndices = [];
+      },
     }
   )
 );
