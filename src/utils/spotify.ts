@@ -274,43 +274,39 @@ const convertStateToTrackInfo = (
   };
 };
 
-// Notify all observers of state changes
+// Notify all observers of state changes - simplified and uses playerStore more efficiently
 const notifyObservers = () => {
   const trackInfo = currentState ? convertStateToTrackInfo(currentState) : null;
   
-  // Check if track is about to end and auto-advance to next track
-  // Start transition 1.5 seconds before the end to create a seamless experience
+  // Handle auto-advance logic
   if (currentState && 
       currentState.position >= currentState.duration - 1500 && 
-      !currentState.paused) {
-    // Prevent multiple calls by checking if we're already handling an end
-    if (!transitionInProgress) {
-      transitionInProgress = true;
-      playNextInQueue().finally(() => {
-        // Reset flag after transition completes
-        setTimeout(() => {
-          transitionInProgress = false;
-        }, 1000);
-      });
-    }
+      !currentState.paused && 
+      !transitionInProgress) {
+    
+    transitionInProgress = true;
+    playNextInQueue().finally(() => {
+      setTimeout(() => transitionInProgress = false, 1000);
+    });
   }
   
-  // Update Zustand store with latest state
-  if (trackInfo) {
+  // Update player store with current state
+  if (currentState?.track_window?.current_track) {
     const playerStore = usePlayerStore.getState();
-    // Get current track from Spotify state
-    const currentTrackUri = currentState?.track_window?.current_track?.uri;
+    const currentTrackUri = currentState.track_window.current_track.uri;
     
-    // Update store with current playback state
-    playerStore.syncWithSpotifyState({
-      currentTrack: currentState?.track_window?.current_track ? 
-        currentState.track_window.current_track as any : null,
-      isPlaying: !currentState?.paused,
-      progress: currentState?.position || 0,
-      duration: currentState?.duration || 0,
-    });
+    // Build update object with all relevant state
+    const stateUpdate = {
+      currentTrack: currentState.track_window.current_track as any,
+      isPlaying: !currentState.paused,
+      progress: currentState.position,
+      duration: currentState.duration,
+    };
     
-    // Update current queue index if needed
+    // Update player store
+    playerStore.syncWithSpotifyState(stateUpdate);
+    
+    // Update queue index if needed
     if (currentTrackUri) {
       const trackIndex = playerStore.queueTracks.indexOf(currentTrackUri);
       if (trackIndex !== -1 && trackIndex !== playerStore.currentQueueIndex) {
@@ -319,7 +315,8 @@ const notifyObservers = () => {
     }
   }
   
-  stateObservers.forEach((observer) => observer(trackInfo, playerError));
+  // Notify UI observers
+  stateObservers.forEach(observer => observer(trackInfo, playerError));
 };
 
 // Subscribe to player state changes
@@ -595,6 +592,35 @@ export const playTrack = async (uri: string) => {
         }
       }
     }
+    return false;
+  }
+};
+
+// New function to play liked songs
+export const playLikedSongs = async (): Promise<boolean> => {
+  try {
+    // Get first batch of liked songs
+    const likedSongs = await getLikedSongs(50, 0);
+    
+    if (!likedSongs || !likedSongs.items || likedSongs.items.length === 0) {
+      return false;
+    }
+    
+    // Extract URIs from liked songs
+    const trackUris = likedSongs.items.map(item => item.track.uri);
+    
+    // Use the store to set up queue
+    const playerStore = usePlayerStore.getState();
+    playerStore.setPlaybackSource("playlist", "liked-songs");
+    playerStore.setQueueTracks(trackUris, 0);
+    
+    // Start playing the first track
+    const success = await playTrack(trackUris[0]);
+    playerStore.setIsPlaying(success);
+    
+    return success;
+  } catch (error) {
+    console.error("Error playing liked songs:", error);
     return false;
   }
 };

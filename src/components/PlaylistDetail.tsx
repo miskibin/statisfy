@@ -14,10 +14,10 @@ import {
   SpotifyPagingObject,
   SpotifyPlaylistTrack,
   SpotifySavedTrack,
-  SpotifyPlaybackState,
 } from "@/utils/spotify.types";
 import { spotifyApi } from "@/utils/apiClient";
 import { Heart } from "lucide-react";
+import { usePlayerStore } from "@/stores/playerStore";
 
 interface PlaylistDetailProps {
   playlistId: string;
@@ -26,18 +26,11 @@ interface PlaylistDetailProps {
   onPlay?: (uri: string) => void;
 }
 
-export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
+export function PlaylistDetail({ playlistId, onBack }: PlaylistDetailProps) {
   const [playlist, setPlaylist] = useState<SpotifyPlaylistDetails | null>(null);
-  const [tracks, setTracks] = useState<
-    (SpotifyPlaylistTrack | SpotifySavedTrack)[]
-  >([]);
+  const [tracks, setTracks] = useState<(SpotifyPlaylistTrack | SpotifySavedTrack)[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentlyPlaying, setCurrentlyPlaying] = useState<{
-    uri: string;
-    isPlaying: boolean;
-  } | null>(null);
-  const [playlistIsPlaying, setPlaylistIsPlaying] = useState(false);
   const [loadingMoreTracks, setLoadingMoreTracks] = useState(false);
   const [tracksOffset, setTracksOffset] = useState(0);
   const [tracksTotal, setTracksTotal] = useState(0);
@@ -46,7 +39,11 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const navigate = useNavigate();
 
+  // Get player state from store
+  const { isPlaying, currentTrack, sourceType, sourceId } = usePlayerStore();
+
   const isLikedSongs = playlistId === "liked-songs";
+  const isCurrentPlaylist = sourceType === "playlist" && sourceId === playlistId;
 
   // Fetch playlist details or liked songs
   useEffect(() => {
@@ -61,22 +58,20 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
           if (result && result.items) {
             setTracks(result.items);
             setTracksTotal(result.total);
-            setTracksOffset(50); // Set to limit for next page
+            setTracksOffset(50);
             setHasMoreTracks(result.items.length < result.total);
             setNextTracksUrl(result.next);
 
-            // Create a virtual playlist object for liked songs
+            // Create virtual playlist object
             setPlaylist({
               id: "liked-songs",
               name: "Liked Songs",
               description: "Songs you've liked across Spotify",
-              images: [
-                {
-                  url: "https://misc.scdn.co/liked-songs/liked-songs-640.png",
-                  height: 640,
-                  width: 640,
-                },
-              ],
+              images: [{
+                url: "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                height: 640,
+                width: 640,
+              }],
               uri: "spotify:playlist:liked-songs",
               owner: { display_name: "You" },
               tracks: {
@@ -99,7 +94,7 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
             setPlaylist(details);
             setTracks(details.tracks.items);
             setTracksTotal(details.tracks.total);
-            setTracksOffset(details.tracks.items.length); // Set to current items count
+            setTracksOffset(details.tracks.items.length);
             setHasMoreTracks(!!details.tracks.next);
             setNextTracksUrl(details.tracks.next);
           } else {
@@ -117,91 +112,35 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
     loadData();
   }, [playlistId, isLikedSongs]);
 
-  // Check playback state
-  useEffect(() => {
-    const checkPlaybackState = async () => {
-      try {
-        const playback = await spotifyApi.get<SpotifyPlaybackState>(
-          "/me/player"
-        );
-
-        if (playback && playback.item) {
-          // Check if this playlist is the current context
-          const playlistUri = playlist?.uri;
-          if (playback.context?.uri === playlistUri) {
-            setPlaylistIsPlaying(playback.is_playing);
-          } else {
-            setPlaylistIsPlaying(false);
-          }
-
-          // Set currently playing track
-          setCurrentlyPlaying({
-            uri: playback.item.uri,
-            isPlaying: playback.is_playing,
-          });
-        } else {
-          setCurrentlyPlaying(null);
-          setPlaylistIsPlaying(false);
-        }
-      } catch (err) {
-        console.error("Error checking playback state:", err);
-      }
-    };
-
-    if (playlist) {
-      checkPlaybackState();
-      const interval = setInterval(checkPlaybackState, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [playlist]);
-
   // Load more tracks when scrolling
   const loadMoreTracks = async () => {
-    // Don't attempt to load more if we're already loading or there's nothing more to load
     if (loadingMoreTracks || !hasMoreTracks) return false;
 
-    console.log("Loading more tracks...", {
-      isLikedSongs,
-      tracksOffset,
-      nextTracksUrl,
-    });
     setLoadingMoreTracks(true);
-
     try {
       if (isLikedSongs) {
         const result = await getLikedSongs(50, tracksOffset);
-        if (result && result.items && result.items.length > 0) {
-          setTracks((prev) => [...prev, ...result.items]);
+        if (result?.items?.length) {
+          setTracks(prev => [...prev, ...result.items]);
           setTracksOffset(tracksOffset + result.items.length);
-          setHasMoreTracks(result.next !== null);
+          setHasMoreTracks(!!result.next);
           setNextTracksUrl(result.next);
           return true;
-        } else {
-          setHasMoreTracks(false);
-          return false;
         }
       } else if (nextTracksUrl) {
-        // Extract URL path without base API URL for regular playlists
         const path = nextTracksUrl.substring(nextTracksUrl.indexOf("v1/") + 2);
-        const moreTracksData = await spotifyApi.get<
-          SpotifyPagingObject<SpotifyPlaylistTrack>
-        >(path);
-
-        if (
-          moreTracksData &&
-          moreTracksData.items &&
-          moreTracksData.items.length > 0
-        ) {
-          setTracks((prev) => [...prev, ...moreTracksData.items]);
+        const moreTracksData = await spotifyApi.get<SpotifyPagingObject<SpotifyPlaylistTrack>>(path);
+        
+        if (moreTracksData?.items?.length) {
+          setTracks(prev => [...prev, ...moreTracksData.items]);
           setTracksOffset(tracksOffset + moreTracksData.items.length);
-          setHasMoreTracks(moreTracksData.next !== null);
+          setHasMoreTracks(!!moreTracksData.next);
           setNextTracksUrl(moreTracksData.next);
           return true;
-        } else {
-          setHasMoreTracks(false);
-          return false;
         }
       }
+      
+      setHasMoreTracks(false);
       return false;
     } catch (error) {
       console.error("Error loading more tracks:", error);
@@ -212,77 +151,62 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
   };
 
   // Intersection observer for infinite scroll
-  const loadingRef = useCallback(
-    (node: HTMLDivElement) => {
-      if (!node || loadingMoreTracks || !hasMoreTracks) return;
-
-      if (observerRef.current) observerRef.current.disconnect();
-
-      observerRef.current = new IntersectionObserver(
-        (entries) => {
-          if (
-            entries[0]?.isIntersecting &&
-            hasMoreTracks &&
-            !loadingMoreTracks
-          ) {
-            loadMoreTracks();
-          }
-        },
-        {
-          rootMargin: "200px", // Load more when 200px from bottom
-          threshold: 0.1,
+  const loadingRef = useCallback(node => {
+    if (!node || loadingMoreTracks || !hasMoreTracks) return;
+    
+    if (observerRef.current) observerRef.current.disconnect();
+    
+    observerRef.current = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting && hasMoreTracks && !loadingMoreTracks) {
+          loadMoreTracks();
         }
-      );
+      },
+      { rootMargin: "200px", threshold: 0.1 }
+    );
+    
+    observerRef.current.observe(node);
+  }, [loadingMoreTracks, hasMoreTracks]);
 
-      if (node) observerRef.current.observe(node);
-    },
-    [loadingMoreTracks, hasMoreTracks, tracksOffset]
-  );
-
+  // Handle playing a track from the playlist
   const handlePlayTrack = async (uri: string) => {
-    // Create playback context with all tracks from the playlist
-    const trackUris = tracks.map((item) => {
-      const track =
-        "track" in item ? item.track : (item as SpotifyPlaylistTrack).track;
-      return track.uri;
-    });
-
-    // Set the playback context with the current track and all tracks
-    setPlaybackContext("playlist", playlistId, trackUris, uri);
-
-    // Play the track with context (which will queue subsequent tracks)
-    const success = await playTrackWithContext(uri);
-    if (success) {
-      setCurrentlyPlaying({ uri, isPlaying: true });
-    }
+    // Get all track URIs from the playlist
+    const trackUris = tracks.map(item => 
+      "track" in item ? item.track.uri : item.track.uri
+    );
+    
+    // Set up playback context
+    setPlaybackContext(
+      "playlist", 
+      isLikedSongs ? "liked-songs" : playlistId, 
+      trackUris, 
+      uri
+    );
+    
+    // Play the track with context
+    await playTrackWithContext(uri);
   };
 
+  // Handle playing the whole playlist
   const handlePlayPlaylist = async () => {
     if (!playlist?.uri) return;
-
+    
     if (isLikedSongs && tracks.length > 0) {
-      // For liked songs, start playing the first track
-      const firstTrackUri =
-        "track" in tracks[0]
-          ? tracks[0].track.uri
-          : (tracks[0] as SpotifySavedTrack).track.uri;
-
-      const success = await playTrack(firstTrackUri);
-      if (success) {
-        setCurrentlyPlaying({ uri: firstTrackUri, isPlaying: true });
-      }
+      // For liked songs, get all track URIs and set up playback
+      const trackUris = tracks.map(item => 
+        "track" in item ? item.track.uri : item.track.uri
+      );
+      
+      setPlaybackContext("playlist", "liked-songs", trackUris, trackUris[0]);
+      await playTrack(trackUris[0]);
     } else {
-      // For regular playlists, play the whole playlist
-      const success = await playPlaylist(playlist.uri);
-      if (success) {
-        setPlaylistIsPlaying(true);
-      }
+      // For regular playlists
+      await playPlaylist(playlist.uri);
     }
   };
 
   // Navigation handlers
-  const handleArtistClick = (artistId: string) =>
-    navigate(`/artists/${artistId}`);
+  const handleArtistClick = (artistId: string) => navigate(`/artists/${artistId}`);
   const handleAlbumClick = (albumId: string) => navigate(`/albums/${albumId}`);
 
   // Format date for added_at fields
@@ -297,44 +221,33 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
 
   // Map tracks to the format expected by MediaDetail
   const tracksToDisplay = tracks.map((item, index) => {
-    // Handle both types of tracks (from playlists and saved tracks)
-    const track =
-      "track" in item ? item.track : (item as SpotifyPlaylistTrack).track;
-    const isCurrentTrack = currentlyPlaying?.uri === track.uri;
-    const isPlaying = isCurrentTrack && currentlyPlaying?.isPlaying;
-    const addedAt =
-      "added_at" in item ? formatAddedDate(item.added_at) : undefined;
+    // Handle both playlist and saved track types
+    const track = "track" in item ? item.track : item.track;
+    const isCurrentlyPlaying = currentTrack?.uri === track.uri;
+    const addedAt = "added_at" in item ? formatAddedDate(item.added_at) : undefined;
 
-    // Get album image URL - select the appropriate size
+    // Get appropriate album image
     const albumImages = track.album?.images || [];
-    // Prefer small images for thumbnails (~64px)
-    const imageUrl =
-      albumImages.length > 0
-        ? // Find smallest suitable image for thumbnails
-          albumImages.find((img) => img.width === 64 || img.height === 64)
-            ?.url ||
-          albumImages.find((img) => img.width === 300 || img.height === 300)
-            ?.url ||
-          albumImages[0].url // Fallback to first image if no suitable size found
-        : undefined;
+    const imageUrl = albumImages.length > 0
+      ? albumImages.find(img => img.width === 64 || img.height === 64)?.url || 
+        albumImages.find(img => img.width === 300 || img.height === 300)?.url || 
+        albumImages[0].url
+      : undefined;
 
     return {
       id: track.id,
       index: index + 1,
       name: track.name,
-      artists: track.artists.map((a) => a.name).join(", "),
-      artistsData: track.artists.map((artist) => ({
-        id: artist.id,
-        name: artist.name,
-      })),
+      artists: track.artists.map(a => a.name).join(", "),
+      artistsData: track.artists,
       albumId: track.album.id,
       albumName: track.album.name,
       imageUrl,
       duration: track.duration_ms,
       uri: track.uri,
       onPlay: handlePlayTrack,
-      isCurrentTrack,
-      isPlaying,
+      isCurrentTrack: isCurrentlyPlaying,
+      isPlaying: isCurrentlyPlaying && isPlaying,
       addedAt,
       onArtistClick: handleArtistClick,
       onAlbumClick: handleAlbumClick,
@@ -379,8 +292,8 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
           </>
         ),
         onPlay: handlePlayPlaylist,
-        onBack: () => navigate("/playlists"),
-        isPlaying: playlistIsPlaying,
+        onBack: onBack || (() => navigate("/playlists")), // Use passed onBack or fallback
+        isPlaying: isCurrentPlaylist && isPlaying,
       }
     : undefined;
 
@@ -389,7 +302,7 @@ export function PlaylistDetail({ playlistId }: PlaylistDetailProps) {
       title={playlist?.name || "Playlist"}
       loading={loading}
       error={error}
-      onBack={() => navigate("/playlists")}
+      onBack={onBack || (() => navigate("/playlists"))} // Use passed onBack or fallback
       loadingRef={loadingRef}
       loadingMore={loadingMoreTracks}
       hasMore={hasMoreTracks}

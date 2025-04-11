@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { getUserPlaylists, playPlaylist } from "@/utils/spotify";
+import { 
+  getUserPlaylists, 
+  playPlaylist, 
+  getLikedSongs, 
+  playLikedSongs 
+} from "@/utils/spotify";
 import { MediaGrid } from "@/components/MediaGrid";
 import { PlaylistDetail } from "@/components/PlaylistDetail";
 
@@ -29,6 +34,25 @@ export function UserPlaylists() {
   const limit = 20;
   const maxItems = 100; // Maximum number of items to load with infinite scroll
 
+  // Fetch liked songs count to display it correctly
+  const fetchLikedSongsCount = async () => {
+    try {
+      const likedSongs = await getLikedSongs(1, 0);
+      if (likedSongs) {
+        // Update the liked songs entry with correct count
+        setPlaylists(currentPlaylists => 
+          currentPlaylists.map(playlist => 
+            playlist.id === "liked-songs" 
+              ? { ...playlist, tracks: { total: likedSongs.total } }
+              : playlist
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error loading liked songs count:", err);
+    }
+  };
+
   const fetchPlaylists = async (offsetValue = 0, append = false) => {
     if (append) {
       setLoadingMore(true);
@@ -53,7 +77,7 @@ export function UserPlaylists() {
                   },
                 ],
                 uri: "spotify:playlist:liked-songs",
-                tracks: { total: 0 },
+                tracks: { total: 0 }, // Will be updated by fetchLikedSongsCount
               },
               ...result.items,
             ]
@@ -63,6 +87,8 @@ export function UserPlaylists() {
           setPlaylists((prev) => [...prev, ...updatedPlaylists]);
         } else {
           setPlaylists(updatedPlaylists);
+          // Fetch liked songs count after setting initial playlists
+          fetchLikedSongsCount();
         }
         setTotal(result.total + 1); // +1 for the liked songs playlist
         setOffset(offsetValue + updatedPlaylists.length);
@@ -88,6 +114,16 @@ export function UserPlaylists() {
 
   const handlePlayPlaylist = async (uri: string) => {
     try {
+      // Special handling for liked songs
+      if (uri === "spotify:playlist:liked-songs") {
+        // Play liked songs directly instead of navigating
+        const success = await playLikedSongs();
+        if (success) {
+          setPlayingPlaylistId("liked-songs");
+        }
+        return;
+      }
+      
       await playPlaylist(uri);
       // Find the playlist ID from the URI
       const playlistId = uri.split(":").pop() || null;

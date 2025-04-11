@@ -3,7 +3,7 @@ import { useNavigate } from "@/App";
 import { spotifyApi } from "@/utils/apiClient";
 import { SpotifyArtistDetails } from "@/utils/spotify.types";
 import { MediaGrid } from "./MediaGrid";
-import { playTrackWithContext } from "@/utils/spotify";
+import { playTrackWithContext, setPlaybackContext } from "@/utils/spotify";
 
 export function Artists() {
   const [topArtists, setTopArtists] = useState<SpotifyArtistDetails[]>([]);
@@ -58,9 +58,15 @@ export function Artists() {
       if (topTracks && topTracks.tracks && topTracks.tracks.length > 0) {
         // Get the track URIs
         const trackUris = topTracks.tracks.map((track) => track.uri);
-
-        // Play the first track
-        const success = await playTrackWithContext(trackUris[0]);
+        
+        // Set up a proper playback context with all tracks
+        const firstTrackUri = trackUris[0];
+        
+        // Use setPlaybackContext to establish the proper context
+        setPlaybackContext("artist", artistId, trackUris, firstTrackUri);
+        
+        // Play the first track with this context (which will queue all tracks)
+        const success = await playTrackWithContext(firstTrackUri);
 
         if (success) {
           setCurrentlyPlayingId(artistId);
