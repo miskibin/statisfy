@@ -4,6 +4,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { NowPlayingBar } from "@/components/NowPlayingBar";
 import { Header } from "@/components/layout/Header";
 import Search from "@/components/Search";
+import { Play } from "lucide-react";
+import { Button } from "../ui/button";
 
 interface LayoutProps {
   children: ReactNode;
@@ -24,6 +26,14 @@ export function Layout({ children, onLogout, navigate }: LayoutProps) {
     setIsSearching(false);
     navigate(path);
   };
+
+  return (
+    <div className="!m-24 p-4 bg-white">
+      <Button variant="default" size="icon" className="rounded-full h-9 w-9">
+        <Play className="h-4 w-4 ml-0.5" />
+      </Button>
+    </div>
+  );
 
   return (
     <SidebarProvider defaultOpen={false}>

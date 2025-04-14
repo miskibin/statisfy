@@ -195,7 +195,7 @@ export function NowPlayingBar() {
 
       {/* Controls */}
       <div className="flex flex-col items-center w-1/3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ">
           {/* Shuffle button */}
           <Button
             size="icon"

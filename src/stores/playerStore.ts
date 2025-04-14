@@ -553,12 +553,12 @@ export const usePlayerStore = create<PlayerState>()(
         // Convert manuallyAddedTracks back to Set after rehydrating
         if (state && Array.isArray(state.manuallyAddedTracks)) {
           state.manuallyAddedTracks = new Set(state.manuallyAddedTracks);
-        } else {
+        } else if (state) {
           state.manuallyAddedTracks = new Set();
         }
 
         // Initialize pendingManuallyAddedIndices
-        state.pendingManuallyAddedIndices = [];
+        state!.pendingManuallyAddedIndices = [];
       },
     }
   )
