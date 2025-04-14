@@ -643,7 +643,7 @@ export const playLikedSongs = async (): Promise<boolean> => {
     // Extract track URIs from the first batch
     let trackUris = firstBatch.items.map((item) => item.track.uri);
     const totalTracks = firstBatch.total;
-    
+
     console.log(`Loading ${totalTracks} liked songs`);
 
     // Use the store to set up queue with first batch
@@ -670,7 +670,11 @@ export const playLikedSongs = async (): Promise<boolean> => {
 
     // Continue loading remaining tracks in the background
     if (totalTracks > trackUris.length) {
-      loadRemainingLikedSongsInBackground(trackUris, totalTracks, playerStore.isShuffleEnabled);
+      loadRemainingLikedSongsInBackground(
+        trackUris,
+        totalTracks,
+        playerStore.isShuffleEnabled
+      );
     }
 
     return playSuccess;
@@ -703,28 +707,32 @@ const loadRemainingLikedSongsInBackground = async (
         }
 
         const nextUris = nextBatch.items.map((item) => item.track.uri);
-        
+
         // For shuffle mode, randomly insert new tracks
         if (shuffleEnabled) {
           for (const uri of nextUris) {
-            const insertPosition = Math.floor(Math.random() * (trackUris.length + 1));
+            const insertPosition = Math.floor(
+              Math.random() * (trackUris.length + 1)
+            );
             trackUris.splice(insertPosition, 0, uri);
           }
         } else {
           // For normal mode, just append to the end
           trackUris = [...trackUris, ...nextUris];
         }
-        
+
         loadedTracks += nextBatch.items.length;
 
         // Update the player store with the new tracks (while preserving current position)
         const playerStore = usePlayerStore.getState();
         const currentIndex = playerStore.currentQueueIndex;
         const currentTrackUri = playerStore.queueTracks[currentIndex];
-        
+
         // Find the new index of the currently playing track (it might have shifted in shuffle mode)
-        const newIndex = currentTrackUri ? trackUris.indexOf(currentTrackUri) : currentIndex;
-        
+        const newIndex = currentTrackUri
+          ? trackUris.indexOf(currentTrackUri)
+          : currentIndex;
+
         // Update the store with new tracks
         playerStore.setQueueTracks(trackUris, newIndex >= 0 ? newIndex : 0);
 
@@ -902,14 +910,14 @@ export const getCurrentPlayback = async () =>
 export const isTrackLiked = async (trackId: string): Promise<boolean> => {
   try {
     if (!trackId) return false;
-    
+
     // Use the check-contains endpoint to efficiently check if tracks are saved
     const response = await spotifyApi.get<boolean[]>(
       `/me/tracks/contains?ids=${trackId}`,
       undefined,
       5000 // 5 second cache
     );
-    
+
     return response ? response[0] : false;
   } catch (error) {
     console.error("Error checking if track is liked:", error);
@@ -917,18 +925,17 @@ export const isTrackLiked = async (trackId: string): Promise<boolean> => {
   }
 };
 
-export const addTrackToLikedSongs = async (trackId: string): Promise<boolean> => {
+export const addTrackToLikedSongs = async (
+  trackId: string
+): Promise<boolean> => {
   try {
     if (!trackId) return false;
-    
-    const response = await spotifyApi.put(
-      `/me/tracks`,
-      { ids: [trackId] }
-    );
-    
+
+    const response = await spotifyApi.put(`/me/tracks`, { ids: [trackId] });
+
     // Clear any cached response for this track's liked status
     spotifyApi.clearCacheItem(`/me/tracks/contains?ids=${trackId}`);
-    
+
     return response !== null;
   } catch (error) {
     console.error("Error adding track to liked songs:", error);
@@ -936,18 +943,17 @@ export const addTrackToLikedSongs = async (trackId: string): Promise<boolean> =>
   }
 };
 
-export const removeTrackFromLikedSongs = async (trackId: string): Promise<boolean> => {
+export const removeTrackFromLikedSongs = async (
+  trackId: string
+): Promise<boolean> => {
   try {
     if (!trackId) return false;
-    
-    const response = await spotifyApi.delete(
-      `/me/tracks`,
-      { ids: [trackId] }
-    );
-    
+
+    const response = await spotifyApi.delete(`/me/tracks`, { ids: [trackId] });
+
     // Clear any cached response for this track's liked status
     spotifyApi.clearCacheItem(`/me/tracks/contains?ids=${trackId}`);
-    
+
     return response !== null;
   } catch (error) {
     console.error("Error removing track from liked songs:", error);

@@ -47,20 +47,20 @@ export function NowPlayingBar() {
     isQueueReady,
     setVolume: updateStoreVolume,
     syncWithSpotifyState,
-  } = usePlayerStore();  // Initialize player once when component mounts - with faster initialization
+  } = usePlayerStore(); // Initialize player once when component mounts - with faster initialization
   useEffect(() => {
     const initPlayer = async () => {
       setIsPlayerInitializing(true);
-      
+
       // Start player initialization but don't wait for it to complete
       const playerPromise = initializePlayer();
-      
+
       // After a short timeout, stop showing the initializing state
       // This makes the UI feel more responsive while initialization continues in background
       const timeoutId = setTimeout(() => {
         setIsPlayerInitializing(false);
       }, 1000);
-      
+
       try {
         // Continue initialization in the background
         await playerPromise;
@@ -84,7 +84,7 @@ export function NowPlayingBar() {
 
     initPlayer();
   }, []);
-  
+
   // Check if current track is liked whenever it changes
   useEffect(() => {
     const checkTrackLiked = async () => {
@@ -92,7 +92,7 @@ export function NowPlayingBar() {
         setIsLiked(false);
         return;
       }
-      
+
       setIsLikeLoading(true);
       try {
         const liked = await isTrackLiked(currentTrack.id);
@@ -103,7 +103,7 @@ export function NowPlayingBar() {
         setIsLikeLoading(false);
       }
     };
-    
+
     checkTrackLiked();
   }, [currentTrack?.id]);
 
@@ -156,11 +156,11 @@ export function NowPlayingBar() {
     updateStoreVolume(newVolume);
     setVolume(newVolume);
   };
-  
+
   // Handle like/unlike track
   const handleToggleLike = async () => {
     if (!currentTrack?.id) return;
-    
+
     setIsLikeLoading(true);
     try {
       let success;
@@ -250,7 +250,6 @@ export function NowPlayingBar() {
           </p>
         </div>
       </div>
-
       {/* Controls */}
       <div className="flex flex-col items-center w-1/3">
         <div className="flex items-center gap-2 ">
@@ -312,8 +311,8 @@ export function NowPlayingBar() {
           </span>
         </div>
       </div>
-
-      {/* Volume */}      <div className="flex items-center gap-2 w-1/3 justify-end">
+      {/* Volume */}{" "}
+      <div className="flex items-center gap-2 w-1/3 justify-end">
         {/* Like/unlike button */}
         {currentTrack && (
           <Button
@@ -333,7 +332,7 @@ export function NowPlayingBar() {
             )}
           </Button>
         )}
-        
+
         <Button
           variant="ghost"
           size="icon"

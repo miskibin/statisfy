@@ -4,6 +4,7 @@ import { SpotifyLogin } from "@/components/SpotifyLogin";
 import { getAccessToken, clearPlaybackContext } from "@/utils/spotify";
 import { ThemeProvider } from "./components/theme-provider";
 import { Layout } from "./components/layout/Layout";
+import { HomePage } from "./components/HomePage"; // Import HomePage component
 import { UserPlaylists } from "./components/UserPlaylists";
 import { NewReleases } from "./components/NewReleases";
 import { Artists } from "./components/Artists"; // Import Artists component
@@ -20,9 +21,7 @@ export function useNavigate() {
     // Dispatch an event that we can listen to
     window.dispatchEvent(new Event("popstate"));
   };
-}
-
-// Main content component that will re-render independently
+}  // Main content component that will re-render independently
 const MainContent = memo(
   ({
     currentView,
@@ -50,12 +49,13 @@ const MainContent = memo(
         return <NewReleases />;
       case "artists":
         return <Artists />;
-      case "queue": // Add case for queue route
+      case "queue":
         return <Queue />;
+      case "home":
+      case "":
+        return <HomePage />;
       default:
-        return (
-          <div className="p-4">Content for {currentView} will go here</div>
-        );
+        return <HomePage />;
     }
   }
 );
