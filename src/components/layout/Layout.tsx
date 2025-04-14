@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { NowPlayingBar } from "@/components/NowPlayingBar";
 import { Header } from "@/components/layout/Header";
 import Search from "@/components/Search";
+import ErrorBoundary from "@/components/ErrorBoundary"; // Import the ErrorBoundary
 
 interface LayoutProps {
   children: ReactNode;
@@ -34,7 +35,9 @@ export function Layout({ children, onLogout, navigate }: LayoutProps) {
           <Header onLogout={onLogout} onSearch={handleSearch} />
 
           <main className="flex-1 overflow-auto scrollbar scrollbar-thumb-accent scrollbar-track-base-100 scrollbar-thumb-rounded-full scrollbar-track-rounded-full">
-            {isSearching ? <Search query={searchQuery} /> : children}
+            <ErrorBoundary> {/* Wrap the content area */}
+              {isSearching ? <Search query={searchQuery} /> : children}
+            </ErrorBoundary>
           </main>
 
           <NowPlayingBar />

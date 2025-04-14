@@ -80,7 +80,9 @@ export function Queue() {
   const isManuallyAdded = (uri: string) => manuallyAddedTracks.has(uri);
 
   // Format tracks for the MediaDetail component
-  const tracks = queueTrackItems.map((track, index) => ({
+  const tracks = queueTrackItems
+    .filter(track => track && track.id) // Add this filter
+    .map((track, index) => ({
     id: track.id,
     index: index + 1,
     name: track.name,
@@ -118,9 +120,9 @@ export function Queue() {
   }));
 
   // Count types of tracks in queue
-  const manuallyAddedCount = queueTrackItems.filter((track) =>
-    manuallyAddedTracks.has(track.uri)
-  ).length;
+  const manuallyAddedCount = queueTrackItems.filter(
+    (track) => track && track.uri && manuallyAddedTracks.has(track.uri)
+  ).length; // Add null and uri check
   const recentlyPlayedCount = recentlyPlayedIndices.length;
 
   // Create queue statistics section

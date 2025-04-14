@@ -10,6 +10,9 @@ import {
   seekToPosition,
   getCurrentTrackInfo,
   initializePlayer,
+  isTrackLiked,
+  addTrackToLikedSongs,
+  removeTrackFromLikedSongs,
 } from "@/utils/spotify";
 import {
   Play,
@@ -20,6 +23,7 @@ import {
   VolumeX,
   Shuffle,
   Loader2,
+  Heart,
 } from "lucide-react";
 import { useNavigate } from "@/App";
 import { usePlayerStore } from "@/stores/playerStore";
@@ -28,6 +32,8 @@ import { toggleShuffleMode } from "@/utils/queue";
 export function NowPlayingBar() {
   const [previousVolume, setPreviousVolume] = useState(50);
   const [isPlayerInitializing, setIsPlayerInitializing] = useState(true);
+  const [isLiked, setIsLiked] = useState(false);
+  const [isLikeLoading, setIsLikeLoading] = useState(false);
   const navigate = useNavigate();
 
   // Get all needed state from playerStore
@@ -41,14 +47,23 @@ export function NowPlayingBar() {
     isQueueReady,
     setVolume: updateStoreVolume,
     syncWithSpotifyState,
-  } = usePlayerStore();
-
-  // Initialize player once when component mounts
+  } = usePlayerStore();  // Initialize player once when component mounts - with faster initialization
   useEffect(() => {
     const initPlayer = async () => {
       setIsPlayerInitializing(true);
+      
+      // Start player initialization but don't wait for it to complete
+      const playerPromise = initializePlayer();
+      
+      // After a short timeout, stop showing the initializing state
+      // This makes the UI feel more responsive while initialization continues in background
+      const timeoutId = setTimeout(() => {
+        setIsPlayerInitializing(false);
+      }, 1000);
+      
       try {
-        await initializePlayer();
+        // Continue initialization in the background
+        await playerPromise;
         const trackInfo = await getCurrentTrackInfo();
 
         if (trackInfo) {
@@ -62,12 +77,35 @@ export function NowPlayingBar() {
       } catch (error) {
         console.error("Failed to initialize player:", error);
       } finally {
+        clearTimeout(timeoutId);
         setIsPlayerInitializing(false);
       }
     };
 
     initPlayer();
   }, []);
+  
+  // Check if current track is liked whenever it changes
+  useEffect(() => {
+    const checkTrackLiked = async () => {
+      if (!currentTrack?.id) {
+        setIsLiked(false);
+        return;
+      }
+      
+      setIsLikeLoading(true);
+      try {
+        const liked = await isTrackLiked(currentTrack.id);
+        setIsLiked(liked);
+      } catch (error) {
+        console.error("Error checking if track is liked:", error);
+      } finally {
+        setIsLikeLoading(false);
+      }
+    };
+    
+    checkTrackLiked();
+  }, [currentTrack?.id]);
 
   // Derived state
   const hasTrack = currentTrack !== null;
@@ -102,7 +140,6 @@ export function NowPlayingBar() {
       console.error("Failed to play previous track:", error);
     }
   };
-
   // Volume control
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
@@ -118,6 +155,27 @@ export function NowPlayingBar() {
     if (volume > 0) setPreviousVolume(volume);
     updateStoreVolume(newVolume);
     setVolume(newVolume);
+  };
+  
+  // Handle like/unlike track
+  const handleToggleLike = async () => {
+    if (!currentTrack?.id) return;
+    
+    setIsLikeLoading(true);
+    try {
+      let success;
+      if (isLiked) {
+        success = await removeTrackFromLikedSongs(currentTrack.id);
+        if (success) setIsLiked(false);
+      } else {
+        success = await addTrackToLikedSongs(currentTrack.id);
+        if (success) setIsLiked(true);
+      }
+    } catch (error) {
+      console.error("Error toggling track liked status:", error);
+    } finally {
+      setIsLikeLoading(false);
+    }
   };
 
   // Seek handling
@@ -255,8 +313,27 @@ export function NowPlayingBar() {
         </div>
       </div>
 
-      {/* Volume */}
-      <div className="flex items-center gap-2 w-1/3 justify-end">
+      {/* Volume */}      <div className="flex items-center gap-2 w-1/3 justify-end">
+        {/* Like/unlike button */}
+        {currentTrack && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 mr-2"
+            onClick={handleToggleLike}
+            disabled={isLikeLoading || !currentTrack?.id}
+            title={isLiked ? "Remove from Liked Songs" : "Add to Liked Songs"}
+          >
+            {isLikeLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : isLiked ? (
+              <Heart className="h-4 w-4 text-primary fill-primary" />
+            ) : (
+              <Heart className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+        )}
+        
         <Button
           variant="ghost"
           size="icon"

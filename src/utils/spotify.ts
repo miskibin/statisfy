@@ -49,6 +49,10 @@ const SCOPES = [
   "user-modify-playback-state",
   "user-read-recently-played",
   "user-top-read",
+  "playlist-modify-private",
+  "user-follow-modify",
+  "user-library-modify",
+  "user-follow-read",
   "playlist-read-private",
   "playlist-read-collaborative",
   "user-library-read",
@@ -638,20 +642,57 @@ export const playLikedSongs = async (): Promise<boolean> => {
 
     // Extract track URIs from the first batch
     let trackUris = firstBatch.items.map((item) => item.track.uri);
-
-    // If there are more tracks, load them all (up to a reasonable limit)
     const totalTracks = firstBatch.total;
+    
+    console.log(`Loading ${totalTracks} liked songs`);
+
+    // Use the store to set up queue with first batch
+    const playerStore = usePlayerStore.getState();
+
+    // Apply shuffle to first batch if needed
+    let firstTrackToPlay = trackUris[0];
+    if (playerStore.isShuffleEnabled) {
+      // Fisher-Yates shuffle for the first batch
+      for (let i = trackUris.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [trackUris[i], trackUris[j]] = [trackUris[j], trackUris[i]];
+      }
+      firstTrackToPlay = trackUris[0];
+    }
+
+    // Set initial queue with first batch
+    playerStore.setPlaybackSource("playlist", "liked-songs");
+    playerStore.setQueueTracks(trackUris, 0);
+
+    // Start playing the first track immediately
+    const playSuccess = await playTrack(firstTrackToPlay);
+    playerStore.setIsPlaying(playSuccess);
+
+    // Continue loading remaining tracks in the background
+    if (totalTracks > trackUris.length) {
+      loadRemainingLikedSongsInBackground(trackUris, totalTracks, playerStore.isShuffleEnabled);
+    }
+
+    return playSuccess;
+  } catch (error) {
+    console.error("Error playing liked songs:", error);
+    return false;
+  }
+};
+
+// Helper function to load remaining liked songs in background
+const loadRemainingLikedSongsInBackground = async (
+  initialTracks: string[],
+  totalTracks: number,
+  shuffleEnabled: boolean
+): Promise<void> => {
+  try {
+    let trackUris = [...initialTracks];
     let loadedTracks = trackUris.length;
     const maxTracks = 10000; // High limit to ensure we get most/all tracks
 
-    console.log(`Loading ${totalTracks} liked songs`);
-
     // Load the remaining tracks in batches of 50
-    while (
-      loadedTracks < totalTracks &&
-      loadedTracks < maxTracks &&
-      firstBatch.next
-    ) {
+    while (loadedTracks < totalTracks && loadedTracks < maxTracks) {
       try {
         console.log(
           `Loaded ${loadedTracks}/${totalTracks} liked songs, fetching more...`
@@ -662,8 +703,30 @@ export const playLikedSongs = async (): Promise<boolean> => {
         }
 
         const nextUris = nextBatch.items.map((item) => item.track.uri);
-        trackUris = [...trackUris, ...nextUris];
+        
+        // For shuffle mode, randomly insert new tracks
+        if (shuffleEnabled) {
+          for (const uri of nextUris) {
+            const insertPosition = Math.floor(Math.random() * (trackUris.length + 1));
+            trackUris.splice(insertPosition, 0, uri);
+          }
+        } else {
+          // For normal mode, just append to the end
+          trackUris = [...trackUris, ...nextUris];
+        }
+        
         loadedTracks += nextBatch.items.length;
+
+        // Update the player store with the new tracks (while preserving current position)
+        const playerStore = usePlayerStore.getState();
+        const currentIndex = playerStore.currentQueueIndex;
+        const currentTrackUri = playerStore.queueTracks[currentIndex];
+        
+        // Find the new index of the currently playing track (it might have shifted in shuffle mode)
+        const newIndex = currentTrackUri ? trackUris.indexOf(currentTrackUri) : currentIndex;
+        
+        // Update the store with new tracks
+        playerStore.setQueueTracks(trackUris, newIndex >= 0 ? newIndex : 0);
 
         if (!nextBatch.next) {
           break;
@@ -677,30 +740,8 @@ export const playLikedSongs = async (): Promise<boolean> => {
     console.log(
       `Finished loading ${trackUris.length}/${totalTracks} liked songs`
     );
-
-    // Use the store to set up queue
-    const playerStore = usePlayerStore.getState();
-
-    // If shuffle is enabled, randomize the tracks
-    if (playerStore.isShuffleEnabled) {
-      // Fisher-Yates shuffle for the track URIs
-      for (let i = trackUris.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [trackUris[i], trackUris[j]] = [trackUris[j], trackUris[i]];
-      }
-    }
-
-    playerStore.setPlaybackSource("playlist", "liked-songs");
-    playerStore.setQueueTracks(trackUris, 0);
-
-    // Start playing the first track
-    const success = await playTrack(trackUris[0]);
-    playerStore.setIsPlaying(success);
-
-    return success;
   } catch (error) {
-    console.error("Error playing liked songs:", error);
-    return false;
+    console.error("Error loading remaining liked songs in background:", error);
   }
 };
 
@@ -856,6 +897,63 @@ export const getQueue = async () =>
 
 export const getCurrentPlayback = async () =>
   spotifyApi.get<SpotifyPlaybackState>("/me/player");
+
+// Track like/unlike functionality
+export const isTrackLiked = async (trackId: string): Promise<boolean> => {
+  try {
+    if (!trackId) return false;
+    
+    // Use the check-contains endpoint to efficiently check if tracks are saved
+    const response = await spotifyApi.get<boolean[]>(
+      `/me/tracks/contains?ids=${trackId}`,
+      undefined,
+      5000 // 5 second cache
+    );
+    
+    return response ? response[0] : false;
+  } catch (error) {
+    console.error("Error checking if track is liked:", error);
+    return false;
+  }
+};
+
+export const addTrackToLikedSongs = async (trackId: string): Promise<boolean> => {
+  try {
+    if (!trackId) return false;
+    
+    const response = await spotifyApi.put(
+      `/me/tracks`,
+      { ids: [trackId] }
+    );
+    
+    // Clear any cached response for this track's liked status
+    spotifyApi.clearCacheItem(`/me/tracks/contains?ids=${trackId}`);
+    
+    return response !== null;
+  } catch (error) {
+    console.error("Error adding track to liked songs:", error);
+    return false;
+  }
+};
+
+export const removeTrackFromLikedSongs = async (trackId: string): Promise<boolean> => {
+  try {
+    if (!trackId) return false;
+    
+    const response = await spotifyApi.delete(
+      `/me/tracks`,
+      { ids: [trackId] }
+    );
+    
+    // Clear any cached response for this track's liked status
+    spotifyApi.clearCacheItem(`/me/tracks/contains?ids=${trackId}`);
+    
+    return response !== null;
+  } catch (error) {
+    console.error("Error removing track from liked songs:", error);
+    return false;
+  }
+};
 
 // Search functionality
 export const searchSpotify = async (

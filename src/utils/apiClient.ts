@@ -224,7 +224,6 @@ export class SpotifyApiClient {
       return null;
     }
   }
-
   /**
    * Generic PUT request
    */
@@ -241,6 +240,29 @@ export class SpotifyApiClient {
         return {} as T; // Success with no content
       }
       console.error(`API PUT Error for ${url}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Generic DELETE request
+   */
+  public async delete<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig
+  ): Promise<T | null> {
+    try {
+      const response = await this.client.delete<T>(url, {
+        data,
+        ...config
+      });
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 204) {
+        return {} as T; // Success with no content
+      }
+      console.error(`API DELETE Error for ${url}:`, error);
       return null;
     }
   }
