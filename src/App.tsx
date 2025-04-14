@@ -21,7 +21,7 @@ export function useNavigate() {
     // Dispatch an event that we can listen to
     window.dispatchEvent(new Event("popstate"));
   };
-}  // Main content component that will re-render independently
+} // Main content component that will re-render independently
 const MainContent = memo(
   ({
     currentView,
@@ -111,7 +111,7 @@ function App() {
   useEffect(() => {
     const syncViewWithPath = () => {
       const path = window.location.pathname;
-      const view = path.substring(1) || "playlists"; // Default to playlists if on root path
+      const view = path.substring(1) || "home"; // Default to playlists if on root path
 
       // Extract route parameters
       const params: Record<string, string> = {};
