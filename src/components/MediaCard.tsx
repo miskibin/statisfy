@@ -36,7 +36,7 @@ export function MediaCard({
 
   return (
     <div
-      className={`group relative rounded-md bg-background ${
+      className={`group relative rounded-md bg-background hover:bg-muted/20 transition-colors ${
         onClick ? "cursor-pointer" : ""
       }`}
       onClick={onClick}
@@ -44,7 +44,7 @@ export function MediaCard({
       <div
         className={`relative overflow-hidden bg-muted/40 ${
           useCircularImage
-            ? "rounded-full aspect-square p-1.5 flex items-center justify-center"
+            ? "rounded-full aspect-square p-1 flex items-center justify-center"
             : "rounded-md aspect-square"
         }`}
       >
@@ -52,7 +52,7 @@ export function MediaCard({
           <img
             src={images[0].url}
             alt={name}
-            className={`h-full w-full object-cover transition-all group-hover:opacity-80 ${
+            className={`h-full w-full object-cover transition-all group-hover:opacity-90 ${
               useCircularImage ? "rounded-full" : ""
             }`}
           />
@@ -68,25 +68,25 @@ export function MediaCard({
             variant="secondary"
             className={`absolute shadow-lg transition-opacity ${
               useCircularImage
-                ? "bottom-1/2 right-1/2 translate-x-1/2 translate-y-1/2 h-8 w-8 opacity-0 group-hover:opacity-100"
-                : "bottom-2 right-2 h-9 w-9 opacity-0 group-hover:opacity-100"
+                ? "bottom-1/2 right-1/2 translate-x-1/2 translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100"
+                : "bottom-1.5 right-1.5 h-8 w-8 opacity-0 group-hover:opacity-100"
             } ${isPlaying ? "opacity-100" : ""}`}
             onClick={handlePlay}
           >
             {isPlaying ? (
               <Pause
-                className={`${useCircularImage ? "h-4 w-4" : "h-5 w-5"}`}
+                className={`${useCircularImage ? "h-3.5 w-3.5" : "h-4 w-4"}`}
               />
             ) : (
-              <Play className={`${useCircularImage ? "h-4 w-4" : "h-5 w-5"}`} />
+              <Play className={`${useCircularImage ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
             )}
           </Button>
         )}
       </div>
-      <div className={`mt-2 ${useCircularImage ? "text-center" : ""}`}>
-        <div className="font-medium line-clamp-1">{name}</div>
+      <div className={`mt-1.5 ${useCircularImage ? "text-center" : ""}`}>
+        <div className="font-medium line-clamp-1 text-sm">{name}</div>
         {secondaryInfo && (
-          <p className="text-xs text-muted-foreground">{secondaryInfo}</p>
+          <p className="text-xs text-muted-foreground line-clamp-1">{secondaryInfo}</p>
         )}
       </div>
     </div>

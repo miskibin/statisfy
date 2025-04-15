@@ -7,14 +7,14 @@ import { MediaCard } from "./MediaCard";
 interface MediaItem {
   id: string;
   name: string;
-  images: { url: string }[];
+  images: { url: string }[]; // Ensure images is always an array
   uri?: string;
   tracks?: {
     total: number;
   };
   artists?: Array<{
     name: string;
-  }>;
+  }> | null; // Allow artists to be null
   total_tracks?: number; // For albums
   followers?: {
     total: number;
@@ -39,20 +39,20 @@ interface MediaGridProps {
 }
 
 export function MediaGrid({
-  title = "", // Default empty title
-  items = [], // Default empty array
-  loading = false, // Default to not loading
+  title = "",
+  items = [],
+  loading = false,
   loadingMore = false,
-  error = null, // Default no error
-  onRetry = () => {}, // Default empty function
+  error = null,
+  onRetry = () => {},
   onPlay,
   onSelect,
   onLoadMore,
   hasMore = false,
-  type = "playlist", // Default to playlist
+  type = "playlist",
   currentlyPlayingId,
   useCircularImages = false,
-  children, // Accept children prop
+  children,
 }: MediaGridProps) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -90,10 +90,10 @@ export function MediaGrid({
   // Display for empty or loading state
   if (loading && items.length === 0 && !children) {
     return (
-      <div className="p-6">
-        <h1 className="text-xl font-medium mb-6">{title}</h1>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-          {[...Array(12)].map((_, i) => (
+      <div className="p-4">
+        <h1 className="text-xl font-medium mb-4">{title}</h1>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+          {[...Array(16)].map((_, i) => (
             <div key={i} className="animate-pulse">
               <div
                 className={`aspect-square bg-muted/40 ${
@@ -163,50 +163,48 @@ export function MediaGrid({
   // If children are provided, render them directly
   if (children) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
         {children}
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       {title && (
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="text-xl font-medium">{title}</h1>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
         {items.map((item) => {
           const isPlaying = currentlyPlayingId === item.id;
 
           return (
-            <div key={item.id} className="max-w-[180px]">
-              <MediaCard
-                key={item.id}
-                id={item.id}
-                name={item.name}
-                images={item.images}
-                uri={item.uri}
-                onClick={() => onSelect && onSelect(item.id)}
-                onPlay={onPlay}
-                isPlaying={isPlaying}
-                secondaryInfo={getSecondaryInfo(item)}
-                useCircularImage={useCircularImages}
-                placeholderIcon={getPlaceholderIcon()}
-              />
-            </div>
+            <MediaCard
+              key={item.id}
+              id={item.id}
+              name={item.name}
+              images={item.images}
+              uri={item.uri}
+              onClick={() => onSelect && onSelect(item.id)}
+              onPlay={onPlay}
+              isPlaying={isPlaying}
+              secondaryInfo={getSecondaryInfo(item)}
+              useCircularImage={useCircularImages}
+              placeholderIcon={getPlaceholderIcon()}
+            />
           );
         })}
       </div>
 
       {/* Element to observe for infinite scrolling */}
       {hasMore && (
-        <div ref={loadMoreRef} className="flex justify-center py-4">
+        <div ref={loadMoreRef} className="flex justify-center py-3">
           {loadingMore ? (
             <div className="flex flex-col items-center gap-1">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
               <p className="text-xs text-muted-foreground">Loading more...</p>
             </div>
           ) : (
